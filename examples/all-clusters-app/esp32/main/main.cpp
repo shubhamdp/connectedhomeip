@@ -548,6 +548,9 @@ extern "C" void app_main()
         ESP_LOGE(TAG, "nvs_flash_init() failed: %s", esp_err_to_name(err));
         return;
     }
+    ESP_LOGE(TAG, "Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 #if CONFIG_ENABLE_PW_RPC
     chip::rpc::Init();
 #endif
@@ -713,6 +716,9 @@ extern "C" void app_main()
         vTaskDelay(50 / portTICK_PERIOD_MS);
     }
 #endif // CONFIG_DEVICE_TYPE_M5STACK
+    ESP_LOGE(TAG, "Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 }
 
 bool lowPowerClusterSleep()

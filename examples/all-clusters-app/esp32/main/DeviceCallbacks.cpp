@@ -42,6 +42,8 @@
 #include <app/util/util.h>
 #include <lib/dnssd/Advertiser.h>
 #include <lib/support/CodeUtils.h>
+#include "nimble/nimble_port.h"
+#include "esp_nimble_hci.h"
 
 static const char * TAG = "app-devicecallbacks";
 
@@ -94,6 +96,7 @@ Identify gIdentify1 = {
 
 void DeviceCallbacks::DeviceEventCallback(const ChipDeviceEvent * event, intptr_t arg)
 {
+    int ret;
     switch (event->Type)
     {
     case DeviceEventType::kInternetConnectivityChange:
@@ -113,7 +116,21 @@ void DeviceCallbacks::DeviceEventCallback(const ChipDeviceEvent * event, intptr_
         break;
 
     case DeviceEventType::kCommissioningComplete:
+        ESP_LOGE(TAG, "Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                                   heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                                   heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
         ESP_LOGI(TAG, "Commissioning complete");
+        ret = nimble_port_stop();
+        if (ret == 0) {
+            nimble_port_deinit();
+            ret = esp_nimble_hci_and_controller_deinit();
+            if (ret == ESP_OK) {
+                ESP_LOGI(TAG, "BLE deinit successful");
+            }
+        }
+        ESP_LOGE(TAG, "Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                                   heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                                   heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
         break;
 
     case DeviceEventType::kInterfaceIpAddressChanged:

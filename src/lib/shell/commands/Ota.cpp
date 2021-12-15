@@ -39,6 +39,7 @@
 
 #if CHIP_DEVICE_LAYER_TARGET_ESP32
 #include "DFUManager_esp32.h"
+#include <esp_heap_caps.h>
 #endif
 #include <controller-clusters/zap-generated/CHIPClientCallbacks.h>
 
@@ -110,6 +111,9 @@ CharSpan ExtractResourceName(CharSpan imageURI)
 
 void OnQueryImageResponse(void * context, const QueryImageResponse::DecodableType & response)
 {
+    ESP_LOGE(TAG, "OTA query image response entry Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     CharSpan imageURI     = response.imageURI.ValueOr({});
     ByteSpan updateToken  = response.updateToken.ValueOr({});
     CharSpan resourceName = ExtractResourceName(imageURI);
@@ -162,6 +166,10 @@ void OnQueryImageResponse(void * context, const QueryImageResponse::DecodableTyp
     {
         ChipLogError(SoftwareUpdate, "Failed to initiate BDX transfer: %" CHIP_ERROR_FORMAT, error.Format());
     }
+
+    ESP_LOGE(TAG, "OTA query image response exit Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 }
 
 void OnQueryImageFailure(void * /* context */, EmberAfStatus status)
@@ -180,6 +188,9 @@ namespace {
 
 void OnQueryImageConnection(void * /* context */, OperationalDeviceProxy * deviceProxy)
 {
+    ESP_LOGE(TAG, "OTA after case session success entry Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     // Initialize cluster object
     Controller::OtaSoftwareUpdateProviderCluster cluster;
     CHIP_ERROR error = cluster.Associate(deviceProxy, sOtaContext.providerEndpointId);
@@ -215,10 +226,16 @@ void OnQueryImageConnection(void * /* context */, OperationalDeviceProxy * devic
     {
         ChipLogError(SoftwareUpdate, "QueryImage failed: %" CHIP_ERROR_FORMAT, error.Format());
     }
+    ESP_LOGE(TAG, "OTA after query image invoke Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 }
 
 void OnApplyUpdateResponse(void * context, const ApplyUpdateResponse::DecodableType & response)
 {
+    ESP_LOGE(TAG, "OTA apply update response entry Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     ChipLogProgress(SoftwareUpdate, "Received ApplyUpdate response: %" PRIu16, static_cast<uint16_t>(response.action));
 
     switch (response.action)
@@ -242,6 +259,9 @@ void OnApplyUpdateResponse(void * context, const ApplyUpdateResponse::DecodableT
     default:
         break;
     }
+    ESP_LOGE(TAG, "OTA apply update response exit Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 }
 
 void OnApplyUpdateFailure(void * /* context */, EmberAfStatus status)
@@ -276,6 +296,9 @@ void OnApplyUpdateConnection(void * /* context */, OperationalDeviceProxy * devi
     request.updateToken = ByteSpan(sOtaContext.updateToken, sOtaContext.updateTokenLen);
     request.newVersion  = sOtaContext.updateVersion;
 
+    ESP_LOGE(TAG, "OTA update invoke command Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     error = cluster.InvokeCommand(request, /* context */ nullptr, OnApplyUpdateResponse, OnApplyUpdateFailure);
 
     if (error != CHIP_NO_ERROR)
@@ -329,6 +352,10 @@ CHIP_ERROR ConnectProvider(FabricIndex fabricIndex, NodeId nodeId, const Transpo
 
 CHIP_ERROR QueryImageHandler(int argc, char ** argv)
 {
+
+    ESP_LOGE(TAG, "OTA before querying (before CASE session) Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     VerifyOrReturnError(argc == 5, CHIP_ERROR_INVALID_ARGUMENT);
 
     const FabricIndex fabricIndex       = static_cast<FabricIndex>(strtoul(argv[0], nullptr, 10));
@@ -362,6 +389,10 @@ CHIP_ERROR ShowUpdateHandler(int argc, char ** argv)
 CHIP_ERROR ApplyImageHandler(int argc, char ** argv)
 {
     VerifyOrReturnError(argc == 7, CHIP_ERROR_INVALID_ARGUMENT);
+
+    ESP_LOGE(TAG, "OTA before apply Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 
     const FabricIndex fabricIndex       = static_cast<FabricIndex>(strtoul(argv[0], nullptr, 10));
     const NodeId providerNodeId         = static_cast<NodeId>(strtoull(argv[1], nullptr, 10));

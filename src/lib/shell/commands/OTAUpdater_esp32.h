@@ -50,6 +50,9 @@ private:
 
 inline esp_err_t OTAUpdater::Begin(void)
 {
+    ESP_LOGE(TAG, "OTAUpdater::Begin entry Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     if (otaUpdateInProgress)
     {
         ESP_LOGW(TAG, "Already in progress");
@@ -73,6 +76,10 @@ inline esp_err_t OTAUpdater::Begin(void)
     }
     otaUpdateImageLen   = 0;
     otaUpdateInProgress = true;
+
+    ESP_LOGE(TAG, "OTAUpdater::Begin exit Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     return ESP_OK;
 }
 
@@ -109,6 +116,9 @@ inline esp_err_t OTAUpdater::Abort(void)
 
 inline esp_err_t OTAUpdater::End(void)
 {
+    ESP_LOGE(TAG, "OTAUpdater::End entry Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     if (otaUpdateInProgress == false)
     {
         return ESP_ERR_INVALID_STATE;
@@ -127,11 +137,18 @@ inline esp_err_t OTAUpdater::End(void)
         }
     }
     otaUpdateInProgress = false;
+
+    ESP_LOGE(TAG, "OTAUpdater::End exit Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     return err;
 }
 
 inline esp_err_t OTAUpdater::Apply()
 {
+    ESP_LOGE(TAG, "OTAUpdater::Apply entryFree:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     if (otaUpdateInProgress == true)
     {
         return ESP_ERR_INVALID_STATE;
@@ -144,5 +161,9 @@ inline esp_err_t OTAUpdater::Apply()
         return err;
     }
     ESP_LOGI(TAG, "Applying, Boot partition set offset:0x%x", otaUpdatePartition->address);
+
+    ESP_LOGE(TAG, "OTAUpdater::Apply exit Free:%d MinFree:%d Lfb:%d", heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                                               heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     return ESP_OK;
 }
