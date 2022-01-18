@@ -18,11 +18,19 @@ import("${chip_root}/src/lib/core/core.gni")
 import("${chip_root}/src/platform/device.gni")
 
 source_set("commands") {
+  include_dirs = [
+    "${chip_root}/zzz_generated",
+    "${chip_root}/zzz_generated/controller-clusters",
+    "${chip_root}/examples/chip-tool-esp32/main/include",
+    "${chip_root}/examples/chip-tool",
+  ]
+
   sources = [
     "Base64.cpp",
     "Help.cpp",
     "Help.h",
     "Meta.cpp",
+    "ChipController.cpp",
   ]
 
   public_deps = [ "${chip_root}/src/lib/shell:shell_core" ]

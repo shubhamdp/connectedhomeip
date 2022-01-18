@@ -105,28 +105,29 @@ CHIP_ERROR Engine::ExecCommand(int argc, char * argv[])
 
 void Engine::RegisterDefaultCommands()
 {
-    RegisterBase64Commands();
-    RegisterMetaCommands();
+//    RegisterBase64Commands();
+//    RegisterMetaCommands();
 #if CHIP_DEVICE_CONFIG_ENABLE_CHIPOBLE
-    RegisterBLECommands();
+//    RegisterBLECommands();
 #endif
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFI_STATION || CHIP_DEVICE_CONFIG_ENABLE_WIFI_AP
-    RegisterWiFiCommands();
+//    RegisterWiFiCommands();
 #endif
 #if CONFIG_DEVICE_LAYER
-    RegisterConfigCommands();
-    RegisterDeviceCommands();
-    RegisterOnboardingCodesCommands();
+//    RegisterConfigCommands();
+//    RegisterDeviceCommands();
+//    RegisterOnboardingCodesCommands();
 #endif
 #if CHIP_DEVICE_CONFIG_ENABLE_NFC
-    RegisterNFCCommands();
+//    RegisterNFCCommands();
 #endif
 #if CHIP_DEVICE_CONFIG_ENABLE_DNSSD
-    RegisterDnsCommands();
+//    RegisterDnsCommands();
 #endif
 #if CHIP_DEVICE_CONFIG_ENABLE_OTA_REQUESTOR
-    RegisterOtaCommands();
+//    RegisterOtaCommands();
 #endif
+    RegisterChipControllerCommands();
 }
 
 } // namespace Shell
