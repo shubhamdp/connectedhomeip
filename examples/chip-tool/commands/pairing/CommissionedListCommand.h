@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../config/PersistentStorage.h"
+#include <PersistentStorage.h>
 #include "../common/Command.h"
 
 class CommissionedListCommand : public Command

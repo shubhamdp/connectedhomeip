@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../config/PersistentStorage.h"
+#include <PersistentStorage.h>
 #include "Command.h"
 #include <map>
 
@@ -29,6 +29,7 @@ public:
 
     void Register(const char * clusterName, commands_list commandsList);
     int Run(int argc, char ** argv);
+    int Init();
 
 private:
     CHIP_ERROR RunCommand(int argc, char ** argv);

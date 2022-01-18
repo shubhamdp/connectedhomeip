@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include "../../config/PersistentStorage.h"
+#include <PersistentStorage.h>
 #include "../common/CHIPCommand.h"
 #include <lib/core/CHIPEncoding.h>
 

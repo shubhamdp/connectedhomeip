@@ -28,28 +28,12 @@
 class ExampleCredentialIssuerCommands : public CredentialIssuerCommands
 {
 public:
-    CHIP_ERROR InitializeCredentialsIssuer(chip::PersistentStorageDelegate & storage) override
-    {
-        return mOpCredsIssuer.Initialize(storage);
-    }
-    CHIP_ERROR SetupDeviceAttestation(chip::Controller::SetupParams & setupParams) override
-    {
-        chip::Credentials::SetDeviceAttestationCredentialsProvider(chip::Credentials::Examples::GetExampleDACProvider());
-
-        // TODO: Replace testingRootStore with a AttestationTrustStore that has the necessary official PAA roots available
-        const chip::Credentials::AttestationTrustStore * testingRootStore = chip::Credentials::GetTestAttestationTrustStore();
-        setupParams.deviceAttestationVerifier = chip::Credentials::GetDefaultDACVerifier(testingRootStore);
-
-        return CHIP_NO_ERROR;
-    }
-    chip::Controller::OperationalCredentialsDelegate * GetCredentialIssuer() override { return &mOpCredsIssuer; }
+    CHIP_ERROR InitializeCredentialsIssuer(chip::PersistentStorageDelegate & storage) override;
+    CHIP_ERROR SetupDeviceAttestation(chip::Controller::SetupParams & setupParams) override;
+    chip::Controller::OperationalCredentialsDelegate * GetCredentialIssuer() override ;
     CHIP_ERROR GenerateControllerNOCChain(chip::NodeId nodeId, chip::FabricId fabricId, chip::Crypto::P256Keypair & keypair,
                                           chip::MutableByteSpan & rcac, chip::MutableByteSpan & icac,
-                                          chip::MutableByteSpan & noc) override
-    {
-        return mOpCredsIssuer.GenerateNOCChainAfterValidation(nodeId, fabricId, keypair.Pubkey(), rcac, icac, noc);
-    }
-
+                                          chip::MutableByteSpan & noc) override;
 private:
     chip::Controller::ExampleOperationalCredentialsIssuer mOpCredsIssuer;
 };
