@@ -56,11 +56,37 @@ struct ble_gatt_char_context
 
 #endif
 
-#include "ble/Ble.h"
+#include <ble/BleLayer.h>
+#include <ble/BleUUID.h>
+#include "nimble/ChipDeviceScanner.h"
+#include "nimble/blecent.h"
 
 namespace chip {
 namespace DeviceLayer {
 namespace Internal {
+
+enum class BleScanState : uint8_t
+{
+    kNotScanning,
+    kScanForDiscriminator,
+    kScanForAddress,
+    kConnecting,
+};
+
+struct BLEScanConfig
+{
+    // If an active scan for connection is being performed
+    BleScanState mBleScanState = BleScanState::kNotScanning;
+
+    // If scanning by discriminator, what are we scanning for
+    uint16_t mDiscriminator = 0;
+
+    // If scanning by address, what address are we searching for
+    std::string mAddress;
+
+    // Optional argument to be passed to callback functions provided by the BLE scan/connect requestor
+    void * mAppState = nullptr;
+};
 
 /**
  * Concrete implementation of the BLEManager singleton object for the ESP32 platform.
@@ -68,11 +94,17 @@ namespace Internal {
 class BLEManagerImpl final : public BLEManager,
                              private Ble::BleLayer,
                              private Ble::BlePlatformDelegate,
-                             private Ble::BleApplicationDelegate
+                             private Ble::BleApplicationDelegate,
+                             private Ble::BleConnectionDelegate,
+                             private ChipDeviceScannerDelegate
 {
 public:
     BLEManagerImpl() {}
 
+    CHIP_ERROR ConfigureBle(uint32_t aAdapterId, bool aIsCentral);
+
+    // to be used by static functions
+    void WrapEvents(const ChipDeviceEvent & event);
 private:
     // Allow the BLEManager interface class to delegate method calls to
     // the implementation methods provided by this class.
@@ -92,6 +124,7 @@ private:
     CHIP_ERROR _SetDeviceName(const char * deviceName);
     uint16_t _NumConnections(void);
     void _OnPlatformEvent(const ChipDeviceEvent * event);
+    void HandlePlatformSpecificBLEEvent(const ChipDeviceEvent * event);
     ::chip::Ble::BleLayer * _GetBleLayer(void);
 
     // ===== Members that implement virtual methods on BlePlatformDelegate.
@@ -114,6 +147,17 @@ private:
     // ===== Members that implement virtual methods on BleApplicationDelegate.
 
     void NotifyChipConnectionClosed(BLE_CONNECTION_OBJECT conId) override;
+
+    // ===== Members that implement virtual methods on BleConnectionDelegate.
+
+    void NewConnection(BleLayer * bleLayer, void * appState, uint16_t connDiscriminator) override;
+    CHIP_ERROR CancelConnection() override;
+
+    // ===== Members that implement virtual methods on ChipDeviceScannerDelegate
+    virtual void OnDeviceScanned(const struct ble_hs_adv_fields & fields,
+                                 const ble_addr_t & addr,
+                                 const chip::Ble::ChipBLEDeviceIdentificationInfo & info) override;
+    void OnScanComplete() override;
 
     // ===== Members for internal use by the following friends.
 
@@ -254,7 +298,29 @@ private:
                                                    void * arg);
     void HandleC3CharRead(struct ble_gatt_char_context * param);
 #endif /* CHIP_ENABLE_ADDITIONAL_DATA_ADVERTISING */
+
+    // int OnUnsubscribeCharComplete(uint16_t conn_handle, const struct ble_gatt_error *error, struct ble_gatt_attr *attr, void *arg);
+    // int OnSubscribeCharComplete(uint16_t conn_handle, const struct ble_gatt_error *error, struct ble_gatt_attr *attr, void *arg);
+    bool SubOrUnsubChar(BLE_CONNECTION_OBJECT conId, const Ble::ChipBleUUID * svcId, const Ble::ChipBleUUID * charId, bool subscribe);
+    // bool OnWriteComplete(uint16_t conn_handle, const struct ble_gatt_error *error, struct ble_gatt_attr *attr, void * arg);
+
+    void HandleGAPConnectionFailed(struct ble_gap_event *gapEvent, CHIP_ERROR error);
+
+    CHIP_ERROR HandleGAPCentralConnect(struct ble_gap_event *gapEvent);
+    CHIP_ERROR HandleGAPPeripheralConnect(struct ble_gap_event *gapEvent);
+
+    static void OnGattDiscComplete(const struct peer * peer, int status, void *arg);
+    static void HandleConnectTimeout(chip::System::Layer *, void * context);
+    static void ConnectDevice(const ble_addr_t & addr, uint16_t timeout);
+    static void CancelConnect(void);
 #endif
+
+    void InitiateScan(BleScanState scanType);
+    static void InitiateScan(intptr_t arg);
+
+    void CleanScanConfig();
+    BLEScanConfig mBLEScanConfig;
+    bool mIsCentral;
 
     static void DriveBLEState(intptr_t arg);
 };
