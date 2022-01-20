@@ -1356,6 +1356,14 @@ int BLEManagerImpl::ble_svr_gap_event(struct ble_gap_event * event, void * arg)
         ESP_LOGD(TAG, "BLE_GAP_EVENT_MTU = %d channel id = %d", event->mtu.value, event->mtu.channel_id);
         break;
 
+    case BLE_GAP_EVENT_NOTIFY_RX:
+        ESP_LOGD(TAG, "BLE_GAP_EVENT_NOTIFY_RX received %s conn_handle:%d attr_handle:%d attr_len:%d",
+                        event->notify_rx.indication ? "indication" : "notification",
+                        event->notify_rx.conn_handle, event->notify_rx.attr_handle,
+                        OS_MBUF_PKTLEN(event->notify_rx.om));
+        err = sInstance.HandleRXNotify(event);
+        SuccessOrExit(err);
+
     default:
         break;
     }
@@ -1555,6 +1563,22 @@ CHIP_ERROR BLEManagerImpl::StartAdvertising(void)
 void BLEManagerImpl::DriveBLEState(intptr_t arg)
 {
     sInstance.DriveBLEState();
+}
+
+CHIP_ERROR BLEManagerImpl::HandleRXNotify(struct ble_gap_event * event)
+{
+    uint8_t * data = OS_MBUF_DATA(event->notify_rx.om, uint8_t *);
+    size_t dataLen = OS_MBUF_PKTLEN(event->notify_rx.om);
+    System::PacketBufferHandle buf = System::PacketBufferHandle::NewWithData(data, dataLen);
+    VerifyOrReturnError(!buf.IsNull(), CHIP_ERROR_NO_MEMORY);
+
+    ChipDeviceEvent chipDeviceEvent;
+    chipDeviceEvent.Type = DeviceEventType::kPlatformESP32BLEIndicationReceived;
+    chipDeviceEvent.Platform.BLEIndicationReceived.mConnection = event->notify_rx.conn_handle;
+    chipDeviceEvent.Platform.BLEIndicationReceived.mData = std::move(buf).UnsafeRelease();
+    PlatformMgr().PostEventOrDie(&chipDeviceEvent);
+
+    return CHIP_NO_ERROR;
 }
 
 CHIP_ERROR BLEManagerImpl::ConfigureBle(uint32_t aAdapterId, bool aIsCentral)

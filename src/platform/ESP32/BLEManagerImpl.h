@@ -313,6 +313,7 @@ private:
     static void HandleConnectTimeout(chip::System::Layer *, void * context);
     static void ConnectDevice(const ble_addr_t & addr, uint16_t timeout);
     static void CancelConnect(void);
+    CHIP_ERROR HandleRXNotify(struct ble_gap_event * event);
 #endif
 
     void InitiateScan(BleScanState scanType);
