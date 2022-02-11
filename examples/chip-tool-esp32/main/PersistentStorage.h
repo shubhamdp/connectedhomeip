@@ -1,5 +1,5 @@
 /*
- *   Copyright (c) 2020 Project CHIP Authors
+ *   Copyright (c) 2022 Project CHIP Authors
  *   All rights reserved.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,31 +15,25 @@
  *   limitations under the License.
  *
  */
-
 #pragma once
-
-#include <app/util/basic-types.h>
-#include <controller/CHIPDeviceController.h>
-#include <lib/support/logging/CHIPLogging.h>
+#include <lib/core/CHIPPersistentStorageDelegate.h>
 
 class PersistentStorage : public chip::PersistentStorageDelegate
 {
 public:
-    CHIP_ERROR Init(const char * name = "cmds-defs");
+    PersistentStorage(const char * name)
+    {
+        mName = name;
+    }
+    ~PersistentStorage()
+    {
+        mName = nullptr;
+    }
 
     /////////// PersistentStorageDelegate Interface /////////
     CHIP_ERROR SyncGetKeyValue(const char * key, void * buffer, uint16_t & size) override;
     CHIP_ERROR SyncSetKeyValue(const char * key, const void * value, uint16_t size) override;
     CHIP_ERROR SyncDeleteKeyValue(const char * key) override;
-
-    uint16_t GetListenPort();
-    chip::Logging::LogCategory GetLoggingLevel();
-
-    // Return the stored local node id, or the default one if nothing is stored.
-    chip::NodeId GetLocalNodeId();
-
-    // Store local node id.
-    CHIP_ERROR SetLocalNodeId(chip::NodeId nodeId);
 
 private:
     const char * mName;

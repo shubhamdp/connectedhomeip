@@ -25,6 +25,8 @@
 #include <lib/shell/Engine.h>
 #include <app_wifi.h>
 
+#include <ESP32Controller.h>
+
 using namespace ::chip;
 using namespace ::chip::Credentials;
 using namespace ::chip::DeviceManager;
@@ -45,18 +47,29 @@ extern "C" void app_main()
     }
     app_wifi_sta_init("maverick", "qwertyuiop");
 
-    CHIPDeviceManager & deviceMgr = CHIPDeviceManager::GetInstance();
+ //   CHIPDeviceManager & deviceMgr = CHIPDeviceManager::GetInstance();
 
-    CHIP_ERROR error = deviceMgr.Init(nullptr);
-    if (error != CHIP_NO_ERROR)
-    {
-        ESP_LOGE(TAG, "device.Init() failed: %s", ErrorStr(error));
-        return;
-    }
+ //    CHIP_ERROR error = deviceMgr.Init(nullptr);
+ //    if (error != CHIP_NO_ERROR)
+ //    {
+ //        ESP_LOGE(TAG, "device.Init() failed: %s", ErrorStr(error));
+ //        return;
+ //    }
 
-    chip::Server::GetInstance().Init();
+//    chip::Server::GetInstance().Init();
 
 #if CONFIG_ENABLE_CHIP_SHELL
-    chip::LaunchShell();
+    // chip::LaunchShell();
 #endif // CONFIG_ENABLE_CHIP_SHELL
+
+    ESP32Controller & controller = ESP32Controller::GetInstance();
+    commissioner.Init();
+    chip::Controller::CHIPDeviceCommissioner & commissioner = commissioner.GetCommissioner();
+
+    DevicePairingCommands & pairingCommands = DevicePairingCommands::GetInstance();
+
+    commissioner.RegisterPairingDelegate(&pairingCommands);
+    
+    pairingCommands.SetDeviceCommissioner(&commissioner);
+    pairingCommands.PairBleWifi(134, 20202021, 3840, "maverick", "qwertyuiop");
 }
