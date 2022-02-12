@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include <PersistentStorage.h>
+#include "../../config/PersistentStorage.h"
 #include "../common/CHIPCommand.h"
 
 class DiscoverCommand : public CHIPCommand, public chip::Controller::DeviceAddressUpdateDelegate

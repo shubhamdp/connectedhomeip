@@ -35,12 +35,12 @@ void Commands::Register(const char * clusterName, commands_list commandsList)
     }
 }
 
-int Commands::Init()
+int Commands::Run(int argc, char ** argv)
 {
     CHIP_ERROR err = CHIP_NO_ERROR;
 
-//    err = chip::Platform::MemoryInit();
-//    VerifyOrExit(err == CHIP_NO_ERROR, ChipLogError(Controller, "Init Memory failure: %s", chip::ErrorStr(err)));
+    err = chip::Platform::MemoryInit();
+    VerifyOrExit(err == CHIP_NO_ERROR, ChipLogError(Controller, "Init Memory failure: %s", chip::ErrorStr(err)));
 
     err = mStorage.Init();
     VerifyOrExit(err == CHIP_NO_ERROR, ChipLogError(Controller, "Init Storage failure: %s", chip::ErrorStr(err)));
@@ -50,19 +50,11 @@ int Commands::Init()
 
     chip::Logging::SetLogFilter(mStorage.GetLoggingLevel());
 
-exit:
-    return (err == CHIP_NO_ERROR) ? EXIT_SUCCESS : EXIT_FAILURE;
-}
-
-int Commands::Run(int argc, char ** argv)
-{
-    CHIP_ERROR err = CHIP_NO_ERROR;
-
     err = RunCommand(argc, argv);
     VerifyOrExit(err == CHIP_NO_ERROR, ChipLogError(chipTool, "Run command failure: %s", chip::ErrorStr(err)));
 
 exit:
-    return (err == CHIP_NO_ERROR) ? 0 : 1;
+    return (err == CHIP_NO_ERROR) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 CHIP_ERROR Commands::RunCommand(int argc, char ** argv)

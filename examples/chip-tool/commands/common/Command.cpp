@@ -24,7 +24,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <inet/IPAddress.h>
 #include <lib/core/CHIPSafeCasts.h>
 #include <lib/support/BytesToHex.h>
 #include <lib/support/CHIPMem.h>
@@ -122,19 +121,14 @@ static bool ParseAddressWithInterface(const char * addressString, Command::Addre
 
     if (result->ai_family == AF_INET6)
     {
-        // struct sockaddr_in6 * addr = reinterpret_cast<struct sockaddr_in6 *>(result->ai_addr);
-        // address->address           = ::chip::Inet::IPAddress::FromSockAddr(*addr);
-        // address->interfaceId       = ::chip::Inet::InterfaceId(addr->sin6_scope_id);
-        ip6_addr_t * addr    = reinterpret_cast<ip6_addr_t *>(result->ai_addr);
-        address->address     = ::chip::Inet::IPAddress(*addr);
-        address->interfaceId = ::chip::Inet::InterfaceId::Null();
+        struct sockaddr_in6 * addr = reinterpret_cast<struct sockaddr_in6 *>(result->ai_addr);
+        address->address           = ::chip::Inet::IPAddress::FromSockAddr(*addr);
+        address->interfaceId       = ::chip::Inet::InterfaceId(addr->sin6_scope_id);
     }
 #if INET_CONFIG_ENABLE_IPV4
     else if (result->ai_family == AF_INET)
     {
-        // address->address     = ::chip::Inet::IPAddress::FromSockAddr(*reinterpret_cast<struct sockaddr_in *>(result->ai_addr));
-        ip4_addr_t *addr     = reinterpret_cast<ip4_addr_t *>(result->ai_addr);
-        address->address     = ::chip::Inet::IPAddress(*addr);
+        address->address     = ::chip::Inet::IPAddress::FromSockAddr(*reinterpret_cast<struct sockaddr_in *>(result->ai_addr));
         address->interfaceId = chip::Inet::InterfaceId::Null();
     }
 #endif // INET_CONFIG_ENABLE_IPV4

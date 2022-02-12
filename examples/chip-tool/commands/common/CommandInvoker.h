@@ -100,7 +100,7 @@ public:
             Platform::MakeUnique<app::CommandSender>(this, aDevice->GetExchangeManager(), aTimedInvokeTimeoutMs.HasValue());
         VerifyOrReturnError(commandSender != nullptr, CHIP_ERROR_NO_MEMORY);
 
-        ReturnErrorOnFailure(commandSender->AddRequestData(commandPath, aRequestData, aTimedInvokeTimeoutMs));
+        ReturnErrorOnFailure(commandSender->AddRequestDataNoTimedCheck(commandPath, aRequestData, aTimedInvokeTimeoutMs));
         ReturnErrorOnFailure(commandSender->SendCommandRequest(aDevice->GetSecureSession().Value()));
         commandSender.release();
         return CHIP_NO_ERROR;

@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include <PersistentStorage.h>
+#include "../../config/PersistentStorage.h"
 #include "Command.h"
 #include <commands/common/CredentialIssuerCommands.h>
 #include <commands/example/ExampleCredentialIssuerCommands.h>
