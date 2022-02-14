@@ -16,10 +16,10 @@
  */
 #pragma once
 #include <controller/CHIPDeviceController.h>
-#include <controller/DeviceDiscoveryDelegate.h>
+// #include <controller/DeviceDiscoveryDelegate.h>
 
 class DevicePairingCommands : public chip::Controller::DevicePairingDelegate,
-                              public chip::Controller::DeviceDiscoveryDelegate
+  //                            public chip::Controller::DeviceDiscoveryDelegate
 {
 public:
     static DevicePairingCommands & GetInstance()
@@ -33,7 +33,7 @@ public:
         mDeviceCommissioner = pDeviceCommissioner;
     }
 
-    PairBleWifi(chip::NodeId nodeId, uint32_t setupPasscode, uint16_t discriminator, const char * ssid, const char * passphrase);
+    void PairBleWifi(chip::NodeId nodeId, uint32_t setupPasscode, uint16_t discriminator, const char * ssid, const char * passphrase);
 
     ///// DevicePairingDelegate /////
     void OnStatusUpdate(DevicePairingDelegate::Status status) override;
@@ -42,10 +42,10 @@ public:
 
     void OnPairingDeleted(CHIP_ERROR error) override;
 
-    void OnCommissioningComplete(NodeId deviceId, CHIP_ERROR error) override;
+    void OnCommissioningComplete(chip::NodeId deviceId, CHIP_ERROR error) override;
 
     ////// DeviceDiscoveryDelegate //////
-    void OnDiscoveredDevice(const chip::Dnssd::DiscoveredNodeData & nodeData) override;
+//    void OnDiscoveredDevice(const chip::Dnssd::DiscoveredNodeData & nodeData) override;
 
 private:
     chip::Controller::DeviceCommissioner * mDeviceCommissioner = nullptr;

@@ -16,6 +16,7 @@
  */
 #include <ESP32Controller.h>
 
+#include <platform/internal/BLEManager.h>
 #include <controller/CHIPDeviceControllerFactory.h>
 #include <lib/support/ScopedBuffer.h>
 #include <lib/support/CodeUtils.h>
@@ -24,13 +25,23 @@ using DeviceControllerFactory = chip::Controller::DeviceControllerFactory;
 
 namespace {
 
-chip::FabricIndex kDefaultFabricIndex = 1;
-chip::FabricId kDefaultFabricId = 1;
+constexpr chip::FabricId kDefaultFabricId = 1;
+constexpr chip::NodeId kTestControllerNodeId = 112233;
 
 } // namespace
 
 CHIP_ERROR ESP32Controller::Init(void)
 {
+    CHIP_ERROR err = chip::DeviceLayer::Internal::BLEMgr().Init();
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(DeviceLayer, "BLEManager initialization failed: %s", ErrorStr(err));
+        return err;
+    }
+
+    ReturnLogErrorOnFailure(chip::DeviceLayer::Internal::BLEMgrImpl().ConfigureBle(0, true));
+
+    ReturnLogErrorOnFailure(mDefaultStorage.Init("crtl_def"));
     ReturnLogErrorOnFailure(mFabricStorage.Initialize(&mDefaultStorage));
 
     chip::Controller::FactoryInitParams factoryInitParams;
@@ -38,10 +49,10 @@ CHIP_ERROR ESP32Controller::Init(void)
     factoryInitParams.listenPort = 5600; // TODO: make configurable
     ReturnLogErrorOnFailure(DeviceControllerFactory::GetInstance().Init(factoryInitParams));
 
-    return InitializeController();
+    return InitializeCommissioner();
 }
 
-CHIP_ERROR ESP32Controller::InitializeController()
+CHIP_ERROR ESP32Controller::InitializeCommissioner()
 {
     chip::Platform::ScopedMemoryBuffer<uint8_t> noc;
     chip::Platform::ScopedMemoryBuffer<uint8_t> icac;
@@ -65,13 +76,13 @@ CHIP_ERROR ESP32Controller::InitializeController()
     // TODO - OpCreds should only be generated for pairing command
     //        store the credentials in persistent storage, and
     //        generate when not available in the storage.
+    ReturnLogErrorOnFailure(mCommissionerStorage.Init("ctrl_storage"));
     ReturnLogErrorOnFailure(mCredIssuerCmds->InitializeCredentialsIssuer(mCommissionerStorage));
-    ReturnLogErrorOnFailure(mCredIssuerCmds->GenerateControllerNOCChain(mCommissionerStorage.GetLocalNodeId(), kDefaultFabricId, ephemeralKey, rcacSpan, icacSpan, nocSpan));
+    ReturnLogErrorOnFailure(mCredIssuerCmds->GenerateControllerNOCChain(kTestControllerNodeId, kDefaultFabricId, ephemeralKey, rcacSpan, icacSpan, nocSpan));
 
     commissionerParams.storageDelegate                = &mCommissionerStorage;
-    commissionerParams.fabricIndex                    = kDefaultFabricIndex;
     commissionerParams.operationalCredentialsDelegate = mCredIssuerCmds->GetCredentialIssuer();
-    commissionerParams.ephemeralKeypair               = &ephemeralKey;
+    commissionerParams.operationalKeypair             = &ephemeralKey;
     commissionerParams.controllerRCAC                 = rcacSpan;
     commissionerParams.controllerICAC                 = icacSpan;
     commissionerParams.controllerNOC                  = nocSpan;

@@ -15,24 +15,28 @@
  *    limitations under the License.
  */
 
-#include <CHIPDeviceManager.h>
 #include <esp_log.h>
 #include <esp_spi_flash.h>
 #include <nvs_flash.h>
-#include <app/server/Server.h>
 #include <lib/support/ErrorStr.h>
-#include <shell_extension/launch.h>
-#include <lib/shell/Engine.h>
 #include <app_wifi.h>
-
+#include <esp_heap_caps.h>
 #include <ESP32Controller.h>
 
 using namespace ::chip;
-using namespace ::chip::Credentials;
-using namespace ::chip::DeviceManager;
 using namespace ::chip::DeviceLayer;
 
 const char * TAG = "chip-tool";
+
+static void alloc_fail_cb(size_t size, uint32_t caps, const char * function_name)
+{
+    ets_printf("Allocation failed in %s: %d bytes, caps: %d\n", function_name, size, caps);
+}
+
+__attribute__((constructor)) void set_alloc_fail_hook(void)
+{
+    heap_caps_register_failed_alloc_callback(alloc_fail_cb);
+}
 
 extern "C" void app_main()
 {
@@ -45,26 +49,17 @@ extern "C" void app_main()
         ESP_LOGE(TAG, "nvs_flash_init() failed: %s", esp_err_to_name(err));
         return;
     }
+    ESP_LOGI(TAG, "nvs_flash_init() succeeded");
+
     app_wifi_sta_init("maverick", "qwertyuiop");
-
- //   CHIPDeviceManager & deviceMgr = CHIPDeviceManager::GetInstance();
-
- //    CHIP_ERROR error = deviceMgr.Init(nullptr);
- //    if (error != CHIP_NO_ERROR)
- //    {
- //        ESP_LOGE(TAG, "device.Init() failed: %s", ErrorStr(error));
- //        return;
- //    }
-
-//    chip::Server::GetInstance().Init();
 
 #if CONFIG_ENABLE_CHIP_SHELL
     // chip::LaunchShell();
 #endif // CONFIG_ENABLE_CHIP_SHELL
 
     ESP32Controller & controller = ESP32Controller::GetInstance();
-    commissioner.Init();
-    chip::Controller::CHIPDeviceCommissioner & commissioner = commissioner.GetCommissioner();
+    controller.Init();
+    chip::Controller::DeviceCommissioner & commissioner = controller.GetCommissioner();
 
     DevicePairingCommands & pairingCommands = DevicePairingCommands::GetInstance();
 

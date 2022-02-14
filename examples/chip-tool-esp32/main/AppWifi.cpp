@@ -37,6 +37,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 
 extern "C" esp_err_t app_wifi_sta_init(const char *ssid, const char *password)
 {
+    ESP_LOGI(TAG, "entry app_wifi_sta_init");
     if (!ssid || !password) {
         return ESP_ERR_INVALID_ARG;
     }
@@ -77,5 +78,6 @@ extern "C" esp_err_t app_wifi_sta_init(const char *ssid, const char *password)
                         portMAX_DELAY);
 
     ESP_LOGI(TAG, "Connected to SSID:%s", wifi_config.sta.ssid);
+    ESP_LOGI(TAG, "exit app_wifi_sta_init");
     return ESP_OK;
 }

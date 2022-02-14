@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include <commands/common/CredentialIssuerCommands.h>
+#include <CredentialIssuerCommands.h>
 #include <controller/ExampleOperationalCredentialsIssuer.h>
 #include <credentials/DeviceAttestationCredsProvider.h>
 #include <credentials/DeviceAttestationVerifier.h>
@@ -29,11 +29,15 @@ class ExampleCredentialIssuerCommands : public CredentialIssuerCommands
 {
 public:
     CHIP_ERROR InitializeCredentialsIssuer(chip::PersistentStorageDelegate & storage) override;
+
     CHIP_ERROR SetupDeviceAttestation(chip::Controller::SetupParams & setupParams) override;
-    chip::Controller::OperationalCredentialsDelegate * GetCredentialIssuer() override ;
+
+    chip::Controller::OperationalCredentialsDelegate * GetCredentialIssuer() override;
+
     CHIP_ERROR GenerateControllerNOCChain(chip::NodeId nodeId, chip::FabricId fabricId, chip::Crypto::P256Keypair & keypair,
                                           chip::MutableByteSpan & rcac, chip::MutableByteSpan & icac,
                                           chip::MutableByteSpan & noc) override;
+
 private:
     chip::Controller::ExampleOperationalCredentialsIssuer mOpCredsIssuer;
 };

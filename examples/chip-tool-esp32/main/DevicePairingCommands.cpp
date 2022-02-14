@@ -24,61 +24,61 @@
 
 void DevicePairingCommands::OnStatusUpdate(chip::Controller::DevicePairingDelegate::Status status)
 {
-    if (status == chip::Controller::DevicePairingDelegate::Status::SecurePairingSuccess)
-    {
-        ChipLogProgress(Controller, "Secure pairing succeeded");
-    }
-    else
-    {
-        ChipLogProgress(Controller, "Secure pairing failed");
-    }
+//    if (status == chip::Controller::DevicePairingDelegate::Status::SecurePairingSuccess)
+//    {
+//        ChipLogProgress(Controller, "Secure pairing succeeded");
+//    }
+//    else
+//    {
+//        ChipLogProgress(Controller, "Secure pairing failed");
+//    }
 }
 
 void DevicePairingCommands::OnPairingComplete(CHIP_ERROR error)
 {
-    if (error == CHIP_NO_ERROR)
-    {
-        ChipLogProgress(Controller, "Pairing succeeded");
-    }
-    else
-    {
-        ChipLogProgress(Controller, "Pairing failed with error: %" CHIP_ERROR_FORMAT, error.Format());
-    }
+//    if (error == CHIP_NO_ERROR)
+//    {
+//        ChipLogProgress(Controller, "Pairing succeeded");
+//    }
+//    else
+//    {
+//        ChipLogProgress(Controller, "Pairing failed with error: %" CHIP_ERROR_FORMAT, error.Format());
+//    }
 }
 
 void DevicePairingCommands::OnPairingDeleted(CHIP_ERROR error)
 {
-    if (error == CHIP_NO_ERROR)
-    {
-        ChipLogProgress(Controller, "Pairing deleted");
-    }
-    else
-    {
-        ChipLogProgress(Controller, "Pairing delete failed with error: %" CHIP_ERROR_FORMAT, error.Format());
-    }
+//     if (error == CHIP_NO_ERROR)
+//     {
+//         ChipLogProgress(Controller, "Pairing deleted");
+//     }
+//     else
+//     {
+//         ChipLogProgress(Controller, "Pairing delete failed with error: %" CHIP_ERROR_FORMAT, error.Format());
+//     }
 }
 
-void DevicePairingCommands::OnCommissioningComplete(NodeId deviceId, CHIP_ERROR error)
+void DevicePairingCommands::OnCommissioningComplete(chip::NodeId deviceId, CHIP_ERROR error)
 {
-    if (error == CHIP_NO_ERROR)
-    {
-        ChipLogProgress(Controller, "Commissioning succeeded NodeId 0x" ChipLogFormatX64, ChipLogValueX64(deviceId));
-    }
-    else
-    {
-        ChipLogProgress(Controller, "Commissioning failed NodeId 0x" ChipLogFormatX64 " error: %" CHIP_ERROR_FORMAT, ChipLogValueX64(deviceId), error.Format());
-    }
+//    if (error == CHIP_NO_ERROR)
+//    {
+//        ChipLogProgress(Controller, "Commissioning succeeded NodeId 0x" ChipLogFormatX64, ChipLogValueX64(deviceId));
+//    }
+//    else
+//    {
+//        ChipLogProgress(Controller, "Commissioning failed NodeId 0x" ChipLogFormatX64 " error: %" CHIP_ERROR_FORMAT, ChipLogValueX64(deviceId), error.Format());
+//    }
 }
 
 void DevicePairingCommands::OnDiscoveredDevice(const chip::Dnssd::DiscoveredNodeData & nodeData)
 {
-    const uint16_t port = nodeData.port;
-    char buf[chip::Inet::IPAddress::kMaxStringLength];
-    nodeData.ipAddress[0].ToString(buf);
-    ChipLogProgress(chipTool, "Discovered Device: %s:%u", buf, port);
-
-    // TODO: Figure out how to deal with onnetwork mdns pairing
-    // Stop Mdns discovery. Is it the right method ?
+//    const uint16_t port = nodeData.port;
+//    char buf[chip::Inet::IPAddress::kMaxStringLength];
+//    nodeData.ipAddress[0].ToString(buf);
+//    ChipLogProgress(chipTool, "Discovered Device: %s:%u", buf, port);
+//
+//    // TODO: Figure out how to deal with onnetwork mdns pairing
+//    // Stop Mdns discovery. Is it the right method ?
 //    CurrentCommissioner().RegisterDeviceDiscoveryDelegate(nullptr);
 
 //     Inet::InterfaceId interfaceId = nodeData.ipAddress[0].IsIPv6LinkLocal() ? nodeData.interfaceId[0] : Inet::InterfaceId::Null();
@@ -92,12 +92,12 @@ void DevicePairingCommands::OnDiscoveredDevice(const chip::Dnssd::DiscoveredNode
 
 void DevicePairingCommands::PairBleWifi(chip::NodeId nodeId, uint32_t setupPasscode, uint16_t discriminator, const char * ssid, const char * passphrase)
 {
-    ByteSpan ssid(ssid, strlen(ssid));
-    ByteSpan passphrase(passphrase, strlen(passphrase));
-    
-    chip::Controller::CommissioningParameters cParams = CommissioningParameters().SetWiFiCredentials(Controller::WiFiCredentials(mSSID, mPassword));
+    chip::ByteSpan ssidSpan(reinterpret_cast<const uint8_t *>(ssid), strlen(ssid));
+    chip::ByteSpan passphraseSpan(reinterpret_cast<const uint8_t *>(passphrase), strlen(passphrase));
 
-    RendezvousParameters rParams = RendezvousParameters().SetSetupPINCode(setupPasscode).SetDiscriminator(discriminator).SetPeerAddress(PeerAddress::BLE());
+    chip::Controller::CommissioningParameters cParams = chip::Controller::CommissioningParameters().SetWiFiCredentials(chip::Controller::WiFiCredentials(ssidSpan, passphraseSpan));
 
-   mCommissioner.PairDevice(nodeId, rParams, cParams);
+    chip::RendezvousParameters rParams = chip::RendezvousParameters().SetSetupPINCode(setupPasscode).SetDiscriminator(discriminator).SetPeerAddress(chip::Transport::PeerAddress::BLE());
+
+    mDeviceCommissioner->PairDevice(nodeId, rParams, cParams);
 }

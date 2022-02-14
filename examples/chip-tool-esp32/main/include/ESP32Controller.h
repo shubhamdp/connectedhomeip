@@ -17,7 +17,8 @@
 #pragma once
 #include <controller/CHIPDeviceController.h>
 #include <DevicePairingCommands.h>
-#include <PersistentStorage.h>
+#include <ExampleCredentialIssuerCommands.h>
+#include <platform/ESP32/ESP32PersistentStorage.h>
 
 class ESP32Controller
 {
@@ -30,12 +31,12 @@ public:
 
     CHIP_ERROR Init();
 
-    chip::Controller::CHIPDeviceController GetCommissioner(void) { return mCommissioner; }
+    chip::Controller::DeviceCommissioner & GetCommissioner(void) { return mCommissioner; }
 
 protected:
     chip::SimpleFabricStorage mFabricStorage;
-    PersistentStorage mDefaultStorage("ctrl_def");
-    PersistentStorage mCommissionerStorage("ctrl_storage");
+    ESP32PersistentStorage mDefaultStorage;
+    ESP32PersistentStorage mCommissionerStorage;
 
     ExampleCredentialIssuerCommands mExampleCredentialIssuerCmds;
     CredentialIssuerCommands * mCredIssuerCmds = &mExampleCredentialIssuerCmds;
@@ -45,6 +46,6 @@ private:
 
     CHIP_ERROR ShutdownCommissioner(void);
 
-    chip::Controller::CHIPDeviceController mCommissioner;
+    chip::Controller::DeviceCommissioner mCommissioner;
     DevicePairingCommands mDevicePairingCommands;
-}
+};

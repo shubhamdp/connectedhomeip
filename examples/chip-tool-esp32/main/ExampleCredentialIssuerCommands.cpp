@@ -16,7 +16,7 @@
  *
  */
 
-#include <commands/example/ExampleCredentialIssuerCommands.h>
+#include <ExampleCredentialIssuerCommands.h>
 
 CHIP_ERROR ExampleCredentialIssuerCommands::InitializeCredentialsIssuer(chip::PersistentStorageDelegate & storage)
 {
@@ -39,12 +39,11 @@ chip::Controller::OperationalCredentialsDelegate * ExampleCredentialIssuerComman
     return &mOpCredsIssuer;
 }
 
-CHIP_ERROR ExampleCredentialIssuerCommands::GenerateControllerNOCChain(chip::NodeId nodeId,
-                                                                       chip::FabricId fabricId,
+CHIP_ERROR ExampleCredentialIssuerCommands::GenerateControllerNOCChain(chip::NodeId nodeId, chip::FabricId fabricId,
                                                                        chip::Crypto::P256Keypair & keypair,
                                                                        chip::MutableByteSpan & rcac,
                                                                        chip::MutableByteSpan & icac,
-                                                                      chip::MutableByteSpan & noc)
+                                                                       chip::MutableByteSpan & noc)
 {
     return mOpCredsIssuer.GenerateNOCChainAfterValidation(nodeId, fabricId, keypair.Pubkey(), rcac, icac, noc);
 }
