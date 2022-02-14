@@ -30,7 +30,7 @@ source_set("commands") {
     "Help.cpp",
     "Help.h",
     "Meta.cpp",
-    "ChipController.cpp",
+#    "ChipController.cpp",
   ]
 
   public_deps = [ "${chip_root}/src/lib/shell:shell_core" ]

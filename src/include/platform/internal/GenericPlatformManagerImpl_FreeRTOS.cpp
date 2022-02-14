@@ -206,7 +206,7 @@ CHIP_ERROR GenericPlatformManagerImpl_FreeRTOS<ImplClass>::_StartEventLoopTask(v
     mEventLoopTask = xTaskCreateStatic(EventLoopTaskMain, CHIP_DEVICE_CONFIG_CHIP_TASK_NAME, ArraySize(mEventLoopStack), this,
                                        CHIP_DEVICE_CONFIG_CHIP_TASK_PRIORITY, mEventLoopStack, &mventLoopTaskStruct);
 #else
-    xTaskCreate(EventLoopTaskMain, CHIP_DEVICE_CONFIG_CHIP_TASK_NAME, CHIP_DEVICE_CONFIG_CHIP_TASK_STACK_SIZE / sizeof(StackType_t),
+    xTaskCreate(EventLoopTaskMain, CHIP_DEVICE_CONFIG_CHIP_TASK_NAME, /* CHIP_DEVICE_CONFIG_CHIP_TASK_STACK_SIZE */ (1024 * 7) / sizeof(StackType_t),
                 this, CHIP_DEVICE_CONFIG_CHIP_TASK_PRIORITY, &mEventLoopTask);
 #endif
 

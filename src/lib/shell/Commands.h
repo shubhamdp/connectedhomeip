@@ -59,7 +59,7 @@ void RegisterOtaCommands();
 /**
  * This function registers the chip-tool
  */
-void RegisterChipControllerCommands();
+// void RegisterChipControllerCommands();
 
 /**
  * This function registers the device onboarding codes commands.
