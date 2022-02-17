@@ -70,8 +70,8 @@ void DevicePairingCommands::OnCommissioningComplete(chip::NodeId deviceId, CHIP_
 //    }
 }
 
-void DevicePairingCommands::OnDiscoveredDevice(const chip::Dnssd::DiscoveredNodeData & nodeData)
-{
+// void DevicePairingCommands::OnDiscoveredDevice(const chip::Dnssd::DiscoveredNodeData & nodeData)
+// {
 //    const uint16_t port = nodeData.port;
 //    char buf[chip::Inet::IPAddress::kMaxStringLength];
 //    nodeData.ipAddress[0].ToString(buf);
@@ -88,7 +88,7 @@ void DevicePairingCommands::OnDiscoveredDevice(const chip::Dnssd::DiscoveredNode
 //     {
 //         SetCommandExitStatus(err);
 //     }
-}
+// }
 
 void DevicePairingCommands::PairBleWifi(chip::NodeId nodeId, uint32_t setupPasscode, uint16_t discriminator, const char * ssid, const char * passphrase)
 {

@@ -17,7 +17,7 @@
  */
 #pragma once
 #include <lib/core/CHIPPersistentStorageDelegate.h>
-#include <platform/esp32/ESP32Config.h>
+#include <platform/ESP32/ESP32Config.h>
 
 class ESP32PersistentStorage : public chip::PersistentStorageDelegate
 {

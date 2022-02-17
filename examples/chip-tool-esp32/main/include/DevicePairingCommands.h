@@ -18,7 +18,7 @@
 #include <controller/CHIPDeviceController.h>
 // #include <controller/DeviceDiscoveryDelegate.h>
 
-class DevicePairingCommands : public chip::Controller::DevicePairingDelegate,
+class DevicePairingCommands : public chip::Controller::DevicePairingDelegate
   //                            public chip::Controller::DeviceDiscoveryDelegate
 {
 public:
