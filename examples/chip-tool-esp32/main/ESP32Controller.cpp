@@ -32,12 +32,12 @@ constexpr chip::NodeId kTestControllerNodeId = 112233;
 
 CHIP_ERROR ESP32Controller::Init(void)
 {
-    CHIP_ERROR err = chip::DeviceLayer::Internal::BLEMgr().Init();
-    if (err != CHIP_NO_ERROR)
-    {
-        ChipLogError(DeviceLayer, "BLEManager initialization failed: %s", ErrorStr(err));
-        return err;
-    }
+//     CHIP_ERROR err = chip::DeviceLayer::Internal::BLEMgr().Init();
+//     if (err != CHIP_NO_ERROR)
+//     {
+//         ChipLogError(DeviceLayer, "BLEManager initialization failed: %s", ErrorStr(err));
+//         return err;
+//     }
 
     ReturnLogErrorOnFailure(chip::DeviceLayer::Internal::BLEMgrImpl().ConfigureBle(0, true));
 

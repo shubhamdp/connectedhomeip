@@ -31,6 +31,8 @@ const char * TAG = "chip-tool";
 static void alloc_fail_cb(size_t size, uint32_t caps, const char * function_name)
 {
     ets_printf("Allocation failed in %s: %d bytes, caps: %d\n", function_name, size, caps);
+    ets_printf("free: %u lfb:%u\n", heap_caps_get_free_size(caps),
+                                    heap_caps_get_largest_free_block(caps));
 }
 
 __attribute__((constructor)) void set_alloc_fail_hook(void)
