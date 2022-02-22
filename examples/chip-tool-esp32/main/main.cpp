@@ -19,7 +19,7 @@
 #include <esp_spi_flash.h>
 #include <nvs_flash.h>
 #include <lib/support/ErrorStr.h>
-#include <app_wifi.h>
+// #include <app_wifi.h>
 #include <esp_heap_caps.h>
 #include <ESP32Controller.h>
 
@@ -53,7 +53,7 @@ extern "C" void app_main()
     }
     ESP_LOGI(TAG, "nvs_flash_init() succeeded");
 
-    app_wifi_sta_init("maverick", "qwertyuiop");
+//    app_wifi_sta_init("maverick", "qwertyuiop");
 
 #if CONFIG_ENABLE_CHIP_SHELL
     // chip::LaunchShell();
