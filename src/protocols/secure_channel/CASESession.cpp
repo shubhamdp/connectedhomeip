@@ -1660,10 +1660,24 @@ CHIP_ERROR CASESession::HandleSigma3a(System::PacketBufferHandle && msg)
             SuccessOrExit(err = signedDataTlvReader.Next(TLV::kTLVType_ByteString, TLV::ContextTag(kTag_TBSData_SenderNOC)));
             SuccessOrExit(err = signedDataTlvReader.Get(data.initiatorNOC));
 
+            printf("Start of CASE Initiator NOC:\n\n");
+            for (uint32_t i = 0; i < data.initiatorNOC.data(); i < data.initiatorNOC.size())
+            {
+                printf("%02x", data.initiatorNOC.data()[i]);
+            }
+            printf("\n\nEnd of CASE Initiator NOC:\n");
+
             if (!data.initiatorICAC.empty())
             {
                 SuccessOrExit(err = signedDataTlvReader.Next(TLV::kTLVType_ByteString, TLV::ContextTag(kTag_TBSData_SenderICAC)));
                 SuccessOrExit(err = signedDataTlvReader.Get(data.initiatorICAC));
+
+                printf("Start of CASE Initiator ICAC:\n\n");
+                for (uint32_t i = 0; i < data.initiatorICAC.data(); i < data.initiatorICAC.size())
+                {
+                    printf("%02x", data.initiatorICAC.data()[i]);
+                }
+                printf("\n\nEnd of CASE Initiator ICAC:\n");
             }
         }
 
