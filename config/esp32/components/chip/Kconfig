@@ -122,6 +122,13 @@ menu "CHIP Core"
             help
                 Option to enable/disable CHIP log level filtering APIs.
 
+        config CHIP_SYSTEM_CONFIG_POOL_USE_HEAP
+            bool Use heap memory for system buffer pool
+            default n
+            help
+                If enabled, all the allocations done performed using
+                chip::Platform::MemoryAlloc() will allocate memory from ESP32's heap area.
+
     endmenu # "General Options"
 
     menu "Networking Options"
