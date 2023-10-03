@@ -26,6 +26,13 @@ menu "CHIP Core"
 
     menu "General Options"
 
+        config CHIP_SYSTEM_CONFIG_POOL_USE_HEAP
+            bool Use heap memory for system buffer pool
+            default n
+            help
+                If enabled, all the allocations done performed using
+                chip::Platform::MemoryAlloc() will allocate memory from ESP32's heap area.
+
         config MAX_EXCHANGE_CONTEXTS
             int "Max CHIP Exchange Contexts"
             range 0 65535
