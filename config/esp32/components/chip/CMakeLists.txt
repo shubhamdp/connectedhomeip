@@ -31,7 +31,7 @@ endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/ota-image.cmake)
 
-set(CHIP_REQUIRE_COMPONENTS esp_eth freertos lwip bt mbedtls fatfs app_update console openthread nvs_flash spi_flash)
+set(CHIP_REQUIRE_COMPONENTS esp_eth freertos lwip bt mbedtls fatfs app_update console openthread nvs_flash spi_flash wpa_supplicant)
 
 if(NOT "${IDF_TARGET}" STREQUAL "esp32h2")
     list(APPEND CHIP_REQUIRE_COMPONENTS mdns)
@@ -505,7 +505,7 @@ endforeach()
 
 target_link_libraries(${COMPONENT_LIB} INTERFACE -Wl,--start-group
                                                 ${chip_libraries}
-                                                $<TARGET_FILE:mbedcrypto> $<TARGET_FILE:mbedx509>
+                                                $<TARGET_FILE:mbedcrypto> $<TARGET_FILE:mbedx509> $<TARGET_FILE:mbedtls>
                                                 $<TARGET_FILE:${mbedtls_lib}>
                                                 -Wl,--end-group)
 

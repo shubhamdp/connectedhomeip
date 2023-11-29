@@ -16,6 +16,7 @@
  */
 
 #pragma once
+#include <crypto/CHIPCryptoPAL.h>
 #include <esp_wifi.h>
 #include <platform/NetworkCommissioning.h>
 
@@ -89,6 +90,22 @@ public:
         uint8_t ssidLen = 0;
         char credentials[DeviceLayer::Internal::kMaxWiFiKeyLength];
         uint8_t credentialsLen = 0;
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFI_PDC
+        uint8_t networkIdentity[Credentials::kMaxCHIPCompactNetworkIdentityLength];
+        size_t networkIdentityLength = 0;
+        uint8_t networkClientIdentity[Credentials::kMaxCHIPCompactNetworkIdentityLength];
+        size_t networkClientIdentityLength = 0;
+
+        // do we need to stage the keypair context as well?
+        // This is for the current boot, but we need this to persist across reboot
+        Crypto::P256SerializedKeypair serializedKeypair;
+        // WARNING: This is unsecure but this is for time being
+        // along with this we will also need to store the length
+        const uint8_t * networkClientIdentityKeyPEM  = nullptr;
+        const uint8_t * networkClientIdentityCertPEM = nullptr;
+
+        const uint8_t * networkIdentityCertPEM = nullptr;
+#endif
     };
 
     // BaseDriver
@@ -122,6 +139,18 @@ public:
 
     CHIP_ERROR SetLastDisconnectReason(const ChipDeviceEvent * event);
     uint16_t GetLastDisconnectReason();
+
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFI_PDC
+    bool SupportsPerDeviceCredentials();
+    CHIP_ERROR AddOrUpdateNetworkWithPDC(ByteSpan ssid, ByteSpan networkIdentity, Optional<uint8_t> clientIdentityNetworkIndex,
+                                         Status & outStatus, MutableCharSpan & outDebugText, MutableByteSpan & outClientIdentity,
+                                         uint8_t & outNetworkIndex);
+    CHIP_ERROR GetNetworkIdentity(uint8_t networkIndex, MutableByteSpan & outNetworkIdentity);
+    CHIP_ERROR GetClientIdentity(uint8_t networkIndex, MutableByteSpan & outClientIdentity);
+    CHIP_ERROR SignWithClientIdentity(uint8_t networkIndex, ByteSpan & message, Crypto::P256ECDSASignature & outSignature);
+
+    CHIP_ERROR ConnectWiFiNetworkWithPDC();
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFI_PDC
 
     static ESPWiFiDriver & GetInstance()
     {

@@ -15,16 +15,75 @@
  *    limitations under the License.
  */
 
+#include <crypto/CHIPCryptoPALmbedTLS.h>
+#include <lib/support/Base64.h>
+#include <lib/support/BytesToHex.h>
 #include <lib/support/CodeUtils.h>
 #include <lib/support/SafeInt.h>
+#include <lib/support/SafePointerCast.h>
+#include <mbedtls/pem.h>
+#include <mbedtls/pk.h>
 #include <platform/CHIPDeviceLayer.h>
 #include <platform/ESP32/ESP32Utils.h>
 #include <platform/ESP32/NetworkCommissioningDriver.h>
 
 #include "esp_wifi.h"
+#include "esp_wpa2.h"
 
 #include <limits>
 #include <string>
+
+// Move this out to a new file where we can guarantee that key is secure and not exposed here.
+namespace chip {
+namespace Crypto {
+
+// P256 won't let us write the keypair in binary format i.e. DER
+// and esp-wifi impl requires the private key in PEM format, hence
+// extending the P256Keypair to add an option to export the keypair
+// in DER and PEM format.
+class PDCKeypair : public P256Keypair
+{
+public:
+    enum class SerializationFormat
+    {
+        kFormatDer = 0,
+        kFormatPem,
+    };
+
+    CHIP_ERROR SerializeToDer(MutableByteSpan & derKey) { return SerializeTo(SerializationFormat::kFormatDer, derKey); }
+
+    CHIP_ERROR SerializeToPem(MutableByteSpan & pemKey) { return SerializeTo(SerializationFormat::kFormatPem, pemKey); }
+
+private:
+    CHIP_ERROR SerializeTo(SerializationFormat format, MutableByteSpan & key)
+    {
+        mbedtls_pk_context pk;
+        pk.CHIP_CRYPTO_PAL_PRIVATE(pk_info) = mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY);
+        pk.CHIP_CRYPTO_PAL_PRIVATE(pk_ctx)  = SafePointerCast<mbedtls_ecp_keypair *>(&mKeypair);
+
+        int status = 0;
+        if (format == SerializationFormat::kFormatDer)
+        {
+            status = mbedtls_pk_write_key_der(&pk, key.data(), key.size());
+        }
+        else
+        {
+            status = mbedtls_pk_write_key_pem(&pk, key.data(), key.size());
+        }
+
+        if (status != 0)
+        {
+            ChipLogError(DeviceLayer, "Failed to serialize the keypair to %s, status:%d",
+                         format == SerializationFormat::kFormatDer ? "der" : "pem", status);
+            return CHIP_ERROR_INTERNAL;
+        }
+
+        return CHIP_NO_ERROR;
+    }
+};
+
+} // namespace Crypto
+} // namespace chip
 
 using namespace ::chip;
 using namespace ::chip::DeviceLayer::Internal;
@@ -272,23 +331,36 @@ void ESPWiFiDriver::ConnectNetwork(ByteSpan networkId, ConnectCallback * callbac
     Network configuredNetwork;
     const uint32_t secToMiliSec = 1000;
 
-    VerifyOrExit(NetworkMatch(mStagingNetwork, networkId), networkingStatus = Status::kNetworkIDNotFound);
+    // VerifyOrExit(NetworkMatch(mStagingNetwork, networkId), networkingStatus = Status::kNetworkIDNotFound);
     VerifyOrExit(mpConnectCallback == nullptr, networkingStatus = Status::kUnknownError);
     ChipLogProgress(NetworkProvisioning, "ESP NetworkCommissioningDelegate: SSID: %.*s", static_cast<int>(networkId.size()),
                     networkId.data());
-    if (CHIP_NO_ERROR == GetConfiguredNetwork(configuredNetwork))
+    // if (CHIP_NO_ERROR == GetConfiguredNetwork(configuredNetwork))
+    // {
+    //     if (NetworkMatch(mStagingNetwork, ByteSpan(configuredNetwork.networkID, configuredNetwork.networkIDLen)))
+    //     {
+    //         if (callback)
+    //         {
+    //             callback->OnResult(Status::kSuccess, CharSpan(), 0);
+    //         }
+    //         return;
+    //     }
+    // }
+
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFI_PDC
+    if (mStagingNetwork.networkIdentityLength > 0)
     {
-        if (NetworkMatch(mStagingNetwork, ByteSpan(configuredNetwork.networkID, configuredNetwork.networkIDLen)))
-        {
-            if (callback)
-            {
-                callback->OnResult(Status::kSuccess, CharSpan(), 0);
-            }
-            return;
-        }
+        err = ConnectWiFiNetworkWithPDC();
     }
+    else
+    {
+        err = ConnectWiFiNetwork(reinterpret_cast<const char *>(mStagingNetwork.ssid), mStagingNetwork.ssidLen,
+                                 reinterpret_cast<const char *>(mStagingNetwork.credentials), mStagingNetwork.credentialsLen);
+    }
+#else
     err = ConnectWiFiNetwork(reinterpret_cast<const char *>(mStagingNetwork.ssid), mStagingNetwork.ssidLen,
                              reinterpret_cast<const char *>(mStagingNetwork.credentials), mStagingNetwork.credentialsLen);
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFI_PDC
 
     err = DeviceLayer::SystemLayer().StartTimer(
         static_cast<System::Clock::Timeout>(kWiFiConnectNetworkTimeoutSeconds * secToMiliSec), OnConnectWiFiNetworkFailed, NULL);
@@ -473,6 +545,266 @@ bool ESPWiFiDriver::WiFiNetworkIterator::Next(Network & item)
     }
     return true;
 }
+
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFI_PDC
+bool ESPWiFiDriver::SupportsPerDeviceCredentials()
+{
+    return true;
+}
+
+// We need some sort of WiFiCredentialStore for private key?
+
+static CHIP_ERROR CHIPCertToX509Pem(const ByteSpan chipCert, ByteSpan & pemCert);
+
+CHIP_ERROR ESPWiFiDriver::AddOrUpdateNetworkWithPDC(ByteSpan ssid, ByteSpan networkIdentity,
+                                                    Optional<uint8_t> clientIdentityNetworkIndex, Status & outStatus,
+                                                    MutableCharSpan & outDebugText, MutableByteSpan & outClientIdentity,
+                                                    uint8_t & outNetworkIndex)
+{
+    // verify the SSID
+    // VerifyOrReturnError(mStagingNetwork.ssidLen == 0 || NetworkMatch(mStagingNetwork, ssid), CHIP_ERROR_INCORRECT_STATE,
+    //                     outStatus = Status::kBoundsExceeded);
+    // VerifyOrReturnError(mStagingNetwork.ssidLen == 0 || NetworkMatch(mStagingNetwork, ssid), CHIP_ERROR_INCORRECT_STATE,
+    //                     outStatus = Status::kBoundsExceeded);
+    // VerifyOrReturnError(ssid.size() <= sizeof(mStagingNetwork.ssid), CHIP_ERROR_INCORRECT_STATE, outStatus =
+    // Status::kOutOfRange);
+    // verify the networkIdentity
+    VerifyOrReturnError(networkIdentity.size() <= Credentials::kMaxCHIPCompactNetworkIdentityLength, CHIP_ERROR_INCORRECT_STATE,
+                        outStatus = Status::kOutOfRange);
+
+    // No debug text
+    outDebugText.reduce_size(0);
+    outNetworkIndex = 0;
+
+    // save the ssid
+    memcpy(mStagingNetwork.ssid, ssid.data(), ssid.size());
+    mStagingNetwork.ssidLen = static_cast<decltype(mStagingNetwork.ssidLen)>(ssid.size());
+    // save the compact networkIdentity
+    memcpy(mStagingNetwork.networkIdentity, networkIdentity.data(), networkIdentity.size());
+    mStagingNetwork.networkIdentityLength = networkIdentity.size();
+
+    // Generate a P256 Keypair
+    // Here, we may have to generate key out of here and then use that to initialzie the P256Keypair
+    // or someclass on top of P256Keypair which writes the private key in PEM format
+    Crypto::PDCKeypair keypair;
+    CHIP_ERROR err = keypair.Initialize(Crypto::ECPKeyTarget::ECDSA);
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(DeviceLayer, "Failed to initialize the keypair, err:%" CHIP_ERROR_FORMAT, err.Format());
+        return err;
+    }
+
+    // This is temporary, needs to be fixed
+    err = keypair.Serialize(mStagingNetwork.serializedKeypair);
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(DeviceLayer, "Failed to serialize the keypair, err:%" CHIP_ERROR_FORMAT, err.Format());
+        return err;
+    }
+
+    // Network Client Identity
+    MutableByteSpan compactClientIdentity(mStagingNetwork.networkClientIdentity);
+    err = Credentials::NewChipNetworkIdentity(keypair, compactClientIdentity);
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(DeviceLayer, "Failed to generate the new network identity, err:%" CHIP_ERROR_FORMAT, err.Format());
+        return err;
+    }
+    mStagingNetwork.networkClientIdentityLength = compactClientIdentity.size();
+
+    // remove remove remove after POC
+    ByteSpan networkClientIdentity(mStagingNetwork.networkClientIdentity, mStagingNetwork.networkClientIdentityLength);
+    ByteSpan networkClientIdentityPem;
+    ReturnErrorOnFailure(CHIPCertToX509Pem(networkClientIdentity, networkClientIdentityPem));
+    ChipLogError(DeviceLayer, "dumping the cert");
+    ChipLogError(DeviceLayer, "cert - %.*s", networkClientIdentityPem.size(), (char *) networkClientIdentityPem.data());
+    // remove remove remove
+
+    memcpy(outClientIdentity.data(), compactClientIdentity.data(), compactClientIdentity.size());
+    outClientIdentity.reduce_size(compactClientIdentity.size());
+
+    outStatus = Status::kSuccess;
+
+    return CHIP_NO_ERROR;
+}
+
+#define PEM_CERT_BEGIN_HDR "-----BEGIN CERTIFICATE-----"
+#define PEM_CERT_END_HDR "-----END CERTIFICATE-----"
+
+#define PEM_EC_KEY_BEGIN_HDR "-----BEGIN EC PRIVATE KEY-----"
+#define PEM_EC_KEY_END_HDR "-----END EC PRIVATE KEY-----"
+
+static size_t GetPemSize(const char * header, const char * footer, size_t derCertLen)
+{
+    return strlen(header) + strlen(footer) + BASE64_ENCODED_LEN(derCertLen) + 1;
+}
+
+static CHIP_ERROR ConvertDerToPem(const char * header, const char * footer, const ByteSpan & derCert, MutableByteSpan & pemCert)
+{
+    size_t outLen;
+    int status = mbedtls_pem_write_buffer(header, footer, derCert.data(), derCert.size(), pemCert.data(), pemCert.size(), &outLen);
+    printf("mbedtls_pem_write_buffer - %d\n\n", status);
+    VerifyOrReturnError(status == 0, CHIP_ERROR_INTERNAL);
+    pemCert.reduce_size(outLen);
+    return CHIP_NO_ERROR;
+}
+
+// This function dynamically allocates the pemCert.data(), free the pemCert.data() after use
+static CHIP_ERROR CHIPCertToX509Pem(const ByteSpan chipCert, ByteSpan & pemCert)
+{
+    ESP_LOGE(TAG, "Inside CHIPCertToX509Pem");
+    uint8_t derBuffer[Credentials::kMaxDERCertLength];
+    MutableByteSpan derCert(derBuffer, Credentials::kMaxDERCertLength);
+
+    CHIP_ERROR err = Credentials::ConvertChipCertToX509Cert(chipCert, derCert);
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(DeviceLayer, "Failed to convert chip cert to x509 cert, err:%" CHIP_ERROR_FORMAT, err.Format());
+        return err;
+    }
+
+    ChipLogError(DeviceLayer, "CHIPCertToX509Pem - Dumping der");
+    for (size_t i = 0; i < derCert.size(); i++)
+    {
+        printf("%02x", derCert.data()[i]);
+    }
+    printf("\n\n");
+
+    size_t pemBufferLen   = GetPemSize(PEM_CERT_BEGIN_HDR, PEM_CERT_END_HDR, derCert.size()) + 64;
+    uint8_t * pemBuffer   = (uint8_t *) malloc(pemBufferLen); // +64 rn for newlines, mbedtls_pem_write_buffer gives out the lengh
+                                                            // required, so we can use that
+    // VerifyOrReturnError(pemBuffer != nullptr, CHIP_ERROR_NO_MEMORY);
+    if (!pemBuffer)
+    {
+        ChipLogError(DeviceLayer, "Failed to allocate buffer to store pem formatted certificate");
+        return CHIP_ERROR_NO_MEMORY;
+    }
+
+    MutableByteSpan mtPemCert(pemBuffer, pemBufferLen);
+    err = ConvertDerToPem(PEM_CERT_BEGIN_HDR, PEM_CERT_END_HDR, derCert, mtPemCert);
+    // VerifyOrReturnError(err != CHIP_NO_ERROR, err, free(pemBuffer));
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(DeviceLayer, "Failed to convert der to pem, err:%" CHIP_ERROR_FORMAT, err.Format());
+        free(pemBuffer);
+        return err;
+    }
+
+    pemCert = ByteSpan(mtPemCert.data(), mtPemCert.size());
+    return CHIP_NO_ERROR;
+}
+
+CHIP_ERROR ESPWiFiDriver::ConnectWiFiNetworkWithPDC()
+{
+    // esp_wifi_set_vendor_ie_cb((esp_vendor_ie_cb_t)matter_vendor_ie_cb, NULL);
+    CHIP_ERROR err = CHIP_NO_ERROR;
+
+    esp_wifi_restore();
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+
+    // mStagingNetwork.network....PEM = ... could be potential leaks, but keeping it for time being to test out stuff
+#ifdef CONFIG_EXAMPLE_VALIDATE_SERVER_CERT
+    // Server cert pem
+    ByteSpan networkIdentity(mStagingNetwork.networkIdentity, mStagingNetwork.networkIdentityLength);
+    ByteSpan networkIdentityPem();
+    ReturnErrorOnFailure(CHIPCertToX509Pem(networkIdentity, networkIdentityPem));
+    mStagingNetwork.networkIdentityCertPEM = networkIdentityPem.data();
+
+#endif /* CONFIG_EXAMPLE_VALIDATE_SERVER_CERT */
+
+    // Client cert pem
+    ByteSpan networkClientIdentity(mStagingNetwork.networkClientIdentity, mStagingNetwork.networkClientIdentityLength);
+    ByteSpan networkClientIdentityPem;
+    ReturnErrorOnFailure(CHIPCertToX509Pem(networkClientIdentity, networkClientIdentityPem));
+    // free the mStagingNetwork.networkIdentityCertPEM on failure
+    mStagingNetwork.networkClientIdentityCertPEM = networkClientIdentityPem.data();
+
+    // Client key pem, we can use chip library MemoryAllocate() than malloc
+    uint8_t * keyPem = (uint8_t *) malloc(600);
+    // free above two buffers
+    VerifyOrReturnError(keyPem != nullptr, CHIP_ERROR_NO_MEMORY);
+    MutableByteSpan networkClientKeyPem(keyPem, 600);
+
+    Crypto::PDCKeypair keypair;
+    keypair.Deserialize(mStagingNetwork.serializedKeypair);
+
+    keypair.SerializeToPem(networkClientKeyPem);
+    mStagingNetwork.networkClientIdentityKeyPEM = networkClientKeyPem.data();
+    printf("private key - %.*s\n", networkClientKeyPem.size(), networkClientKeyPem.data());
+
+    ReturnErrorOnFailure(ConnectivityMgr().SetWiFiStationMode(ConnectivityManager::kWiFiStationMode_Disabled));
+
+    // Why RAM?
+    // ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+    wifi_config_t wifi_config;
+    memcpy(wifi_config.sta.ssid, mStagingNetwork.ssid, mStagingNetwork.ssidLen);
+    wifi_config.sta.matter_wifi_auth_enabled = true;
+
+    esp_wifi_set_mode(WIFI_MODE_STA);
+    esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+
+    uint8_t networkKeyIdentifierBuffer[20];
+    Credentials::MutableCertificateKeyId networkKeyIdentifier(networkKeyIdentifierBuffer);
+    // strlen(".pdc.csa-iot.org") = 16
+    char EAPNetworkAccessIdentifier[40 + 16];
+    const char * naiSuffix = ".pdc.csa-iot.org";
+
+    // Credentials::ExtractIdentifierFromChipNetworkIdentity(
+    //     { mStagingNetwork.networkIdentity, mStagingNetwork.networkIdentityLength }, networkKeyIdentifier);
+    // Encoding::BytesToUppercaseHexBuffer(networkKeyIdentifier.data(), networkKeyIdentifier.size(), EAPNetworkAccessIdentifier,
+    // 40); memcpy(EAPNetworkAccessIdentifier + 40, naiSuffix, strlen(naiSuffix));
+
+    // esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) EAPNetworkAccessIdentifier, sizeof(EAPNetworkAccessIdentifier));
+    esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) naiSuffix, strlen(naiSuffix));
+
+    // check for error codes
+
+    // Commenting this, we need some sort of validation for server when connecting to the newtork
+    // #if defined(CONFIG_EXAMPLE_VALIDATE_SERVER_CERT) || defined(CONFIG_EXAMPLE_WPA3_ENTERPRISE) ||
+    // defined(CONFIG_EXAMPLE_WPA3_192BIT_ENTERPRISE)
+    // esp_wifi_sta_wpa2_ent_set_ca_cert(networkIdentityPem.data(), networkIdentityPem.data());
+    // #endif /* CONFIG_EXAMPLE_VALIDATE_SERVER_CERT */ /* EXAMPLE_WPA3_ENTERPRISE */
+
+#ifdef CONFIG_EXAMPLE_EAP_METHOD_TLS
+        esp_wifi_sta_wpa2_ent_set_cert_key(networkClientIdentityPem.data(), networkClientIdentityPem.size(),
+                                           networkIdentityKeyPem.data(), networkIdentityKeyPem.size(), NULL, 0);
+#endif /* CONFIG_EXAMPLE_EAP_METHOD_TLS */
+
+#if defined(CONFIG_EXAMPLE_WPA3_192BIT_ENTERPRISE)
+    ESP_LOGI(TAG, "Enabling 192 bit certification");
+    ESP_ERROR_CHECK(esp_wifi_sta_wpa2_set_suiteb_192bit_certification(true));
+#endif
+
+    // This validation can not be used, since server will be using the self signed certificate and default cert bundle
+    // won't be able to validate it.
+    // #ifdef CONFIG_EXAMPLE_USE_DEFAULT_CERT_BUNDLE
+    //     ESP_ERROR_CHECK(esp_wifi_sta_wpa2_use_default_cert_bundle(true));
+    // #endif
+
+    esp_wifi_sta_wpa2_ent_enable();
+
+    return ConnectivityMgr().SetWiFiStationMode(ConnectivityManager::kWiFiStationMode_Enabled);
+}
+
+CHIP_ERROR ESPWiFiDriver::GetNetworkIdentity(uint8_t networkIndex, MutableByteSpan & outNetworkIdentity)
+{
+    // This is the configured network identity, supposed to be stored when one calls AddOrUpdate...
+    return CHIP_ERROR_NOT_IMPLEMENTED;
+}
+
+CHIP_ERROR ESPWiFiDriver::GetClientIdentity(uint8_t networkIndex, MutableByteSpan & outClientIdentity)
+{
+    // Shall we read from the NVS/ where to store ?
+    return CHIP_ERROR_NOT_IMPLEMENTED;
+}
+
+CHIP_ERROR ESPWiFiDriver::SignWithClientIdentity(uint8_t networkIndex, ByteSpan & message,
+                                                 Crypto::P256ECDSASignature & outSignature)
+{
+    // sign the message
+    return CHIP_ERROR_NOT_IMPLEMENTED;
+}
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFI_PDC
 
 } // namespace NetworkCommissioning
 } // namespace DeviceLayer

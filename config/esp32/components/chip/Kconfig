@@ -519,6 +519,12 @@ menu "CHIP Device Layer"
                 The amount of time (in milliseconds) to wait for Internet connectivity to be established on
                 the device's WiFi station interface during a Network Provisioning TestConnectivity operation.
 
+        config ENABLE_WIFI_PDC
+            bool "Enable WiFi PDC"
+            default y
+            help
+                Enable per device credentials for connecting to a WiFi network
+
     endmenu
 
     menu "WiFi AP Options"
