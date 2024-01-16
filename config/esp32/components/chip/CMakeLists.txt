@@ -520,13 +520,3 @@ if(CONFIG_ENABLE_PW_RPC)
         target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=${func}")
     endforeach()
 endif()
-
-# Build Matter OTA image
-if (CONFIG_CHIP_OTA_IMAGE_BUILD)
-    chip_ota_image(chip-ota-image
-        INPUT_FILES ${BUILD_DIR}/${CMAKE_PROJECT_NAME}.bin
-        OUTPUT_FILE ${BUILD_DIR}/${CMAKE_PROJECT_NAME}-ota.bin
-    )
-    # Adding dependecy as app target so that this runs after images are ready
-    add_dependencies(chip-ota-image app)
-endif()

@@ -1038,25 +1038,6 @@ menu "CHIP Device Layer"
 
     endmenu
 
-    menu "Matter OTA Image"
-
-        config CHIP_OTA_IMAGE_BUILD
-            bool "Generate Matter OTA image"
-            help
-              Enable building OTA (Over-the-air update) image which includes Matter OTA header.
-
-        config CHIP_OTA_IMAGE_EXTRA_ARGS
-            string "OTA image creator extra arguments"
-            depends on CHIP_OTA_IMAGE_BUILD
-            help
-              ota_image_tool.py is used to create the OTA image.
-              Mandatory arguments(Version, VersionString, VID, PID) are picked up from the config options.
-              This option allows us to pass optional arguments(MinApplicableSoftwareVersion, MaxApplicableSoftwareVersion,
-              and ReleaseNotesURL) to the ota_image_tool.py script.
-              eg: "-mi 2 -ma 4 -rn https://github.com/espressif/esp-idf/releases/tag/v4.4"
-
-    endmenu
-
     menu "External Platform"
         config CHIP_ENABLE_EXTERNAL_PLATFORM
             bool "Enable external platform layer"
