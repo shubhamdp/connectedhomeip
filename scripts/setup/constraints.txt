@@ -173,7 +173,7 @@ mypy==0.971
     # via -r requirements.all.txt
 mypy-extensions==1.0.0
     # via mypy
-mypy-protobuf==3.2.0
+mypy-protobuf==3.5.0
     # via -r requirements.all.txt
 numpy==1.24.2
     # via pandas
@@ -217,7 +217,7 @@ prettytable==2.5.0
     #   mbed-os-tools
 prompt-toolkit==3.0.38
     # via ipython
-protobuf==3.20.1
+protobuf==4.24.4
     # via
     #   -r requirements.all.txt
     #   mypy-protobuf
@@ -350,7 +350,7 @@ traitlets==5.9.0
     # via
     #   ipython
     #   matplotlib-inline
-types-protobuf==3.19.22
+types-protobuf==4.24.0.2
     # via
     #   -r requirements.all.txt
     #   mypy-protobuf
