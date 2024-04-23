@@ -282,6 +282,7 @@ private:
     CHIPoBLEServiceMode mServiceMode;
 #if CONFIG_BT_BLUEDROID_ENABLED
     esp_gatt_if_t mAppIf;
+    System::Clock::Timestamp mAdvertiseStartTime;
 #elif CONFIG_BT_NIMBLE_ENABLED
     uint16_t mNumGAPCons;
 #endif
@@ -316,6 +317,8 @@ private:
     void HandleDisconnect(esp_ble_gatts_cb_param_t * param);
     CHIPoBLEConState * GetConnectionState(uint16_t conId, bool allocate = false);
     bool ReleaseConnectionState(uint16_t conId);
+    static void HandleFastAdvertisementTimer(System::Layer * systemLayer, void * context);
+    void HandleFastAdvertisementTimer();
 #if CONFIG_ENABLE_ESP32_BLE_CONTROLLER
     CHIP_ERROR HandleGAPConnect(esp_ble_gattc_cb_param_t p_data);
     CHIP_ERROR HandleGAPCentralConnect(esp_ble_gattc_cb_param_t p_data);

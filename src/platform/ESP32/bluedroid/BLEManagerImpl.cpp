@@ -151,7 +151,8 @@ const uint16_t CHIPoBLEGATTAttrCount = sizeof(CHIPoBLEGATTAttrs) / sizeof(CHIPoB
 ChipDeviceScanner & mDeviceScanner = Internal::ChipDeviceScanner::GetInstance();
 #endif
 BLEManagerImpl BLEManagerImpl::sInstance;
-constexpr System::Clock::Timeout BLEManagerImpl::kFastAdvertiseTimeout;
+static constexpr System::Clock::Timeout kFastAdvertiseTimeout =
+    System::Clock::Milliseconds32(CHIP_DEVICE_CONFIG_BLE_ADVERTISING_INTERVAL_CHANGE_TIME);
 #if CONFIG_ENABLE_ESP32_BLE_CONTROLLER
 static esp_gattc_char_elem_t * char_elem_result   = NULL;
 static esp_gattc_descr_elem_t * descr_elem_result = NULL;
@@ -232,6 +233,21 @@ CHIP_ERROR BLEManagerImpl::_Init()
 
 exit:
     return err;
+}
+
+void BLEManagerImpl::_Shutdown()
+{
+    BleLayer::Shutdown();
+    mServiceMode = ConnectivityManager::kCHIPoBLEServiceMode_Disabled;
+
+    // selectively setting kGATTServiceStarted flag, in order to notify the state machine to stop the CHIPoBLE gatt service
+    mFlags.ClearAll().Set(Flags::kGATTServiceStarted);
+
+#ifdef CONFIG_ENABLE_ESP32_BLE_CONTROLLER
+    OnChipBleConnectReceived = nullptr;
+#endif // CONFIG_ENABLE_ESP32_BLE_CONTROLLER
+
+    PlatformMgr().ScheduleWork(DriveBLEState, 0);
 }
 
 CHIP_ERROR BLEManagerImpl::_SetAdvertisingEnabled(bool val)
@@ -1057,7 +1073,9 @@ void BLEManagerImpl::DriveBLEState(void)
             ExitNow();
         }
 
-        mFlags.Set(Flags::kControlOpInProgress);
+        printf("inside the cleanup\n\n");
+        DeinitESPBleLayer();
+        mFlags.ClearAll();
 
         ExitNow();
     }
@@ -1156,8 +1174,36 @@ CHIP_ERROR BLEManagerImpl::InitESPBleLayer(void)
 
     mFlags.Set(Flags::kESPBLELayerInitialized);
 
+  {
+    esp_bd_addr_t random_addr;
+    esp_fill_random(&random_addr, sizeof(random_addr));
+    random_addr[5] = random_addr[5] || 0xC0;   // make sure 46:47 bit are set to 0b11
+    esp_err_t esp_err = esp_ble_gap_set_rand_addr(random_addr);
+    printf("esp_ble_gap_set_rand_add -- err:%d\n\n", esp_err);
+  }
+    
+
 exit:
     return err;
+}
+
+void BLEManagerImpl::DeinitESPBleLayer()
+{
+    printf("inside DeinitESPBleLayer\n\n");
+
+    esp_err_t err = ESP_OK;
+
+#if CONFIG_IDF_TARGET_ESP32
+    err = esp_bt_mem_release(ESP_BT_MODE_BTDM);
+#elif CONFIG_IDF_TARGET_ESP32C2 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32H2 || CONFIG_IDF_TARGET_ESP32C6
+    err = esp_bt_mem_release(ESP_BT_MODE_BLE);
+#endif
+
+    printf("DeinitESPBleLayer err:%d\n\n", err);
+
+    VerifyOrReturn(err == ESP_OK, ChipLogError(DeviceLayer, "BLE deinit failed"));
+    ChipLogProgress(DeviceLayer, "BLE memory reclaimed");
+    // TODO: PostEvent(DeviceEventType::kBLEDeinitialized);
 }
 
 CHIP_ERROR BLEManagerImpl::ConfigureAdvertisingData(void)
@@ -1227,14 +1273,12 @@ CHIP_ERROR BLEManagerImpl::StartAdvertising(void)
         0,                                 // adv_int_min
         0,                                 // adv_int_max
         ADV_TYPE_IND,                      // adv_type
-        BLE_ADDR_TYPE_PUBLIC,              // own_addr_type
+        BLE_ADDR_TYPE_RANDOM,              // own_addr_type
         { 0 },                             // peer_addr
         BLE_ADDR_TYPE_RANDOM,              // peer_addr_type
         ADV_CHNL_ALL,                      // channel_map
         ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY, // adv_filter_policy
     };
-
-    advertParams.own_addr_type = BLE_ADDR_TYPE_RANDOM;
 
     // Advertise connectable if we haven't reached the maximum number of connections.
     size_t numCons        = NumConnections();
