@@ -20,9 +20,11 @@ ENV IDF_PATH=/opt/espressif/esp-idf/
 ENV IDF_TOOLS_PATH=/opt/espressif/tools
 
 COPY --from=build /tmp/esp-idf /opt/espressif/esp-idf
+COPY 0001-fix-esp_netif-Fix-mldv6-report-memory-leak-in-esp_ne.patch /opt/espressif/esp-idf
 
 # Setup the ESP-IDF
 WORKDIR /opt/espressif/esp-idf
 RUN set -x \
+    && patch -p1 < 0001-fix-esp_netif-Fix-mldv6-report-memory-leak-in-esp_ne.patch \
     && ./install.sh \
     && : # last line
