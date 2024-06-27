@@ -887,6 +887,20 @@ void BLEManagerImpl::bleprph_on_sync(void)
 {
     ESP_LOGI(TAG, "BLE host-controller synced");
     xSemaphoreGive(semaphoreHandle);
+
+#ifdef CONFIG_BT_NIMBLE_HOST_BASED_PRIVACY
+        else
+        {
+            err = MapBLEError(ble_hs_pvcy_rpa_config(NIMBLE_HOST_ENABLE_RPA));
+            if (err != CHIP_NO_ERROR)
+            {
+                ChipLogError(DeviceLayer, "RPA not set: %s", ErrorStr(err));
+                return err;
+            }
+        }
+#else
+        ble_hs_pvcy_set_resolve_enabled(1);
+#endif
 }
 
 void BLEManagerImpl::bleprph_host_task(void * param)
@@ -1331,6 +1345,15 @@ CHIP_ERROR BLEManagerImpl::HandleGAPPeripheralConnect(struct ble_gap_event * gap
     CHIP_ERROR err = CHIP_NO_ERROR;
     ChipLogProgress(DeviceLayer, "BLE GAP connection established (con %u)", gapEvent->connect.conn_handle);
 
+    // print the BD address
+    struct ble_gap_conn_desc out_desc;
+    if (0 == ble_gap_conn_find(gapEvent->connect.conn_handle, &out_desc))
+    {
+        uint8_t * addr = &out_desc.peer_id_addr.val[0];
+        ChipLogProgress(DeviceLayer, "BLE GAP address: %02x:%02x:%02x:%02x:%02x:%02x",
+                        addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
+    }
+
     // Track the number of active GAP connections.
     mNumGAPCons++;
     err = SetSubscribed(gapEvent->connect.conn_handle);
@@ -1702,17 +1725,7 @@ CHIP_ERROR BLEManagerImpl::StartAdvertising(void)
                 return err;
             }
         }
-#ifdef CONFIG_BT_NIMBLE_HOST_BASED_PRIVACY
-        else
-        {
-            err = MapBLEError(ble_hs_pvcy_rpa_config(NIMBLE_HOST_ENABLE_RPA));
-            if (err != CHIP_NO_ERROR)
-            {
-                ChipLogError(DeviceLayer, "RPA not set: %s", ErrorStr(err));
-                return err;
-            }
-        }
-#endif
+
         if (mScanResponse.HasValue())
         {
             err = MapBLEError(ble_gap_adv_rsp_set_data(mScanResponse.Value().data(), mScanResponse.Value().size()));
