@@ -12,12 +12,13 @@ An example showing the use of Matter on the Infineon CYW30739 platform.
     -   [Installing ModusToolbox™ Software](#installing-modustoolbox-software)
         -   [ModusToolbox™ tools package](#modustoolbox-tools-package)
             -   [Note for WSL (Windows Subsystem for Linux)](#note-for-wsl-windows-subsystem-for-linux)
-        -   [Checkout Submodules](#checkout-submodules)
+        -   [Checkout Submodules and Bootstrap](#checkout-submodules-and-bootstrap)
     -   [Building](#building)
     -   [Factory Data](#factory-data)
         -   [Commissionable Data](#commissionable-data)
         -   [Device Information](#device-information)
         -   [DAC / DAC Key / PAI Certificate / Certificate Declaration](#dac--dac-key--pai-certificate--certificate-declaration)
+        -   [Use Provisioned Optiga Trust M](#use-provisioned-optiga-trust-m)
     -   [Flashing the Application](#flashing-the-application)
         -   [Enter Recovery Mode](#enter-recovery-mode)
         -   [Run Flash Script](#run-flash-script)
@@ -64,7 +65,7 @@ If you are using WSL, please ensure you have installed the ModusToolbox™
 Software for Linux. Running Windows tools directly from the WSL command line
 would cause path resolution failure in the build process.
 
-### Checkout Submodules
+### Checkout Submodules and Bootstrap
 
 Before building the example, check out the Matter repository and sync submodules
 using the following command:
@@ -72,6 +73,7 @@ using the following command:
 ```bash
 $ cd ~/connectedhomeip
 $ scripts/checkout_submodules.py --platform infineon
+$ bash scripts/bootstrap.sh -p all,infineon
 ```
 
 ## Building
@@ -163,6 +165,29 @@ keys, and CD by the following arguments:
     'matter_cd="/path/to/cd.der"'
     ```
 
+### Use Provisioned Optiga Trust M
+
+For boards supported by Optiga Trust M, CYW30739 will provision factory data to
+the Optiga Trust M by default for easy development.
+
+The Optiga Trust M on a production board should come with provisioned factory
+data. To ensure its optimal use, please configure the Optiga using the following
+arguments:
+
+-   `use_provisioned_optiga`, `optiga_dac_object_id`,
+    `optiga_dac_key_object_id`, `optiga_pai_cert_object_id`
+
+    ```bash
+    $ cd ~/connectedhomeip
+    $ scripts/examples/gn_build_example.sh examples/lock-app/infineon/cyw30739 out/cyw30739-lock \
+    'optiga_dac_object_id="0xe0e0"' \
+    'optiga_dac_key_object_id="0xe0f0"' \
+    'optiga_pai_cert_object_id="0xe0e8"'
+    ```
+
+The developer must set the object IDs to corresponding values matching the
+configurations used in the Optiga provisioning procedure.
+
 ## Flashing the Application
 
 ### Enter Recovery Mode
@@ -190,19 +215,7 @@ Put the CYW30739 in to the recovery mode before running the flash script.
     [Openthread_border_router](https://github.com/project-chip/connectedhomeip/blob/master/docs/guides/openthread_border_router_pi.md)
     for more information on how to setup a border router on a raspberryPi.
 
--   You can provision and control the Chip device using the python controller,
-    Chip tool standalone, Android or iOS app
+-   You can provision and control the device using the Python controller REPL,
+    chip-tool standalone, Android or iOS app
 
     [Python Controller](https://github.com/project-chip/connectedhomeip/blob/master/src/controller/python/README.md)
-
-    Here is an example with the Python controller:
-
-    ```bash
-    $ chip-device-ctrl
-    chip-device-ctrl > connect -ble 3840 20202021 1234
-    chip-device-ctrl > zcl NetworkCommissioning AddThreadNetwork 1234 0 0 operationalDataset=hex:0e080000000000000000000300000b35060004001fffe00208dead00beef00cafe0708fddead00beef000005108e11d8ea8ffaa875713699f59e8807e0030a4f70656e5468726561640102c2980410edc641eb63b100b87e90a9980959befc0c0402a0fff8 breadcrumb=0 timeoutMs=1000
-    chip-device-ctrl > zcl NetworkCommissioning EnableNetwork 1234 0 0 networkID=hex:dead00beef00cafe breadcrumb=0 timeoutMs=1000
-    chip-device-ctrl > close-ble
-    chip-device-ctrl > resolve 1234
-    chip-device-ctrl > zcl OnOff Toggle 1234 1 0
-    ```

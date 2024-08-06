@@ -142,6 +142,7 @@ protected:
 
     // ===== Members available to the implementation subclass.
 
+    CHIP_ERROR ConfigureThreadStack(otInstance * otInst);
     CHIP_ERROR DoInit(otInstance * otInst);
     bool IsThreadAttachedNoLock(void);
     bool IsThreadInterfaceUpNoLock(void);
@@ -230,7 +231,6 @@ private:
 
     DnsBrowseCallback mDnsBrowseCallback;
     DnsResolveCallback mDnsResolveCallback;
-    GeneralFaults<kMaxNetworkFaults> mNetworkFaults;
 
     struct DnsServiceTxtEntries
     {
@@ -263,6 +263,8 @@ private:
                                                   otError error);
 #endif // CHIP_DEVICE_CONFIG_ENABLE_THREAD_DNS_CLIENT
 #endif // CHIP_DEVICE_CONFIG_ENABLE_THREAD_SRP_CLIENT
+
+    GeneralFaults<kMaxNetworkFaults> mNetworkFaults;
 
     inline ImplClass * Impl() { return static_cast<ImplClass *>(this); }
 };

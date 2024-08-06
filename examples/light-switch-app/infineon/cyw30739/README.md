@@ -12,12 +12,13 @@ An example showing the use of Matter on the Infineon CYW30739 platform.
     -   [Installing ModusToolbox™ Software](#installing-modustoolbox-software)
         -   [ModusToolbox™ tools package](#modustoolbox-tools-package)
             -   [Note for WSL (Windows Subsystem for Linux)](#note-for-wsl-windows-subsystem-for-linux)
-        -   [Checkout Submodules](#checkout-submodules)
+        -   [Checkout Submodules and Bootstrap](#checkout-submodules-and-bootstrap)
     -   [Building](#building)
     -   [Factory Data](#factory-data)
         -   [Commissionable Data](#commissionable-data)
         -   [Device Information](#device-information)
         -   [DAC / DAC Key / PAI Certificate / Certificate Declaration](#dac--dac-key--pai-certificate--certificate-declaration)
+        -   [Use Provisioned Optiga Trust M](#use-provisioned-optiga-trust-m)
     -   [Flashing the Application](#flashing-the-application)
         -   [Enter Recovery Mode](#enter-recovery-mode)
         -   [Run Flash Script](#run-flash-script)
@@ -64,7 +65,7 @@ If you are using WSL, please ensure you have installed the ModusToolbox™
 Software for Linux. Running Windows tools directly from the WSL command line
 would cause path resolution failure in the build process.
 
-### Checkout Submodules
+### Checkout Submodules and Bootstrap
 
 Before building the example, check out the Matter repository and sync submodules
 using the following command:
@@ -72,6 +73,7 @@ using the following command:
 ```bash
 $ cd ~/connectedhomeip
 $ scripts/checkout_submodules.py --platform infineon
+$ bash scripts/bootstrap.sh -p all,infineon
 ```
 
 ## Building
@@ -162,6 +164,29 @@ keys, and CD by the following arguments:
     'matter_att_cert_password="password"' \
     'matter_cd="/path/to/cd.der"'
     ```
+
+### Use Provisioned Optiga Trust M
+
+For boards supported by Optiga Trust M, CYW30739 will provision factory data to
+the Optiga Trust M by default for easy development.
+
+The Optiga Trust M on a production board should come with provisioned factory
+data. To ensure its optimal use, please configure the Optiga using the following
+arguments:
+
+-   `use_provisioned_optiga`, `optiga_dac_object_id`,
+    `optiga_dac_key_object_id`, `optiga_pai_cert_object_id`
+
+    ```bash
+    $ cd ~/connectedhomeip
+    $ scripts/examples/gn_build_example.sh examples/light-switch-app/infineon/cyw30739 out/cyw30739-light-switch \
+    'optiga_dac_object_id="0xe0e0"' \
+    'optiga_dac_key_object_id="0xe0f0"' \
+    'optiga_pai_cert_object_id="0xe0e8"'
+    ```
+
+The developer must set the object IDs to corresponding values matching the
+configurations used in the Optiga provisioning procedure.
 
 ## Flashing the Application
 

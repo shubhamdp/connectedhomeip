@@ -121,13 +121,15 @@ using namespace chip::Tracing::DarwinFramework;
     MTRP256KeypairBridge _operationalKeypairBridge;
     MTRDeviceAttestationDelegateBridge * _deviceAttestationDelegateBridge;
     MTRDeviceControllerFactory * _factory;
-    NSMutableDictionary * _nodeIDToDeviceMap;
+    NSMapTable * _nodeIDToDeviceMap;
     os_unfair_lock _deviceMapLock; // protects nodeIDToDeviceMap
     MTRCommissionableBrowser * _commissionableBrowser;
     MTRAttestationTrustStoreBridge * _attestationTrustStoreBridge;
 
     // _serverEndpoints is only touched on the Matter queue.
     NSMutableArray<MTRServerEndpoint *> * _serverEndpoints;
+
+    MTRDeviceStorageBehaviorConfiguration * _storageBehaviorConfiguration;
 }
 
 - (nullable instancetype)initWithParameters:(MTRDeviceControllerAbstractParameters *)parameters error:(NSError * __autoreleasing *)error
@@ -145,9 +147,6 @@ using namespace chip::Tracing::DarwinFramework;
     return [MTRDeviceControllerFactory.sharedInstance initializeController:self withParameters:controllerParameters error:error];
 }
 
-static NSString * const kLocalTestUserDefaultDomain = @"org.csa-iot.matter.darwintest";
-static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @"subscriptionPoolSizeOverride";
-
 - (instancetype)initWithFactory:(MTRDeviceControllerFactory *)factory
                              queue:(dispatch_queue_t)queue
                    storageDelegate:(id<MTRDeviceControllerStorageDelegate> _Nullable)storageDelegate
@@ -156,6 +155,7 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
           otaProviderDelegateQueue:(dispatch_queue_t _Nullable)otaProviderDelegateQueue
                   uniqueIdentifier:(NSUUID *)uniqueIdentifier
     concurrentSubscriptionPoolSize:(NSUInteger)concurrentSubscriptionPoolSize
+      storageBehaviorConfiguration:(MTRDeviceStorageBehaviorConfiguration *)storageBehaviorConfiguration
 {
     if (self = [super init]) {
         // Make sure our storage is all set up to work as early as possible,
@@ -236,7 +236,7 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
         _chipWorkQueue = queue;
         _factory = factory;
         _deviceMapLock = OS_UNFAIR_LOCK_INIT;
-        _nodeIDToDeviceMap = [NSMutableDictionary dictionary];
+        _nodeIDToDeviceMap = [NSMapTable strongToWeakObjectsMapTable];
         _serverEndpoints = [[NSMutableArray alloc] init];
         _commissionableBrowser = nil;
 
@@ -256,24 +256,36 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
         }
 
         // Provide a way to test different subscription pool sizes without code change
-        NSUserDefaults * defaults = [[NSUserDefaults alloc] initWithSuiteName:kLocalTestUserDefaultDomain];
-        if ([defaults objectForKey:kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey]) {
-            NSInteger subscriptionPoolSizeOverride = [defaults integerForKey:kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey];
+        NSUserDefaults * defaults = [NSUserDefaults standardUserDefaults];
+        if ([defaults objectForKey:kDefaultSubscriptionPoolSizeOverrideKey]) {
+            NSInteger subscriptionPoolSizeOverride = [defaults integerForKey:kDefaultSubscriptionPoolSizeOverrideKey];
             if (subscriptionPoolSizeOverride < 1) {
                 concurrentSubscriptionPoolSize = 1;
             } else {
                 concurrentSubscriptionPoolSize = static_cast<NSUInteger>(subscriptionPoolSizeOverride);
             }
+
+            MTR_LOG(" *** Overriding pool size of MTRDeviceController with: %lu", static_cast<unsigned long>(concurrentSubscriptionPoolSize));
         }
 
         if (!concurrentSubscriptionPoolSize) {
             concurrentSubscriptionPoolSize = 1;
         }
+
+        MTR_LOG("%@ Setting up pool size of MTRDeviceController with: %lu", self, static_cast<unsigned long>(concurrentSubscriptionPoolSize));
+
         _concurrentSubscriptionPool = [[MTRAsyncWorkQueue alloc] initWithContext:self width:concurrentSubscriptionPoolSize];
 
         _storedFabricIndex = chip::kUndefinedFabricIndex;
+
+        _storageBehaviorConfiguration = storageBehaviorConfiguration;
     }
     return self;
+}
+
+- (NSString *)description
+{
+    return [NSString stringWithFormat:@"<MTRDeviceController: %p uuid %@>", self, _uniqueIdentifier];
 }
 
 - (BOOL)isRunning
@@ -283,11 +295,13 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
 
 - (void)shutdown
 {
+    MTR_LOG("%@ shutdown called", self);
     if (_cppCommissioner == nullptr) {
         // Already shut down.
         return;
     }
 
+    MTR_LOG("Shutting down MTRDeviceController: %@", self);
     [self cleanupAfterStartup];
 }
 
@@ -299,8 +313,9 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
     // do the secure session shutdowns.  Since we don't want to hold the lock
     // while calling out into arbitrary invalidation code, snapshot the list of
     // devices before we start invalidating.
+    MTR_LOG("cleanupAfterStartup MTRDeviceController: %@", self);
     os_unfair_lock_lock(&_deviceMapLock);
-    NSArray<MTRDevice *> * devices = [_nodeIDToDeviceMap allValues];
+    NSEnumerator * devices = [_nodeIDToDeviceMap objectEnumerator];
     [_nodeIDToDeviceMap removeAllObjects];
     os_unfair_lock_unlock(&_deviceMapLock);
 
@@ -316,6 +331,7 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
 // in a very specific way that only MTRDeviceControllerFactory knows about.
 - (void)shutDownCppController
 {
+    MTR_LOG("shutDownCppController MTRDeviceController: %p", self);
     assertChipStackLockedByCurrentThread();
 
     // Shut down all our endpoints.
@@ -383,7 +399,7 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
 {
     __block BOOL commissionerInitialized = NO;
     if ([self isRunning]) {
-        MTR_LOG_ERROR("Unexpected duplicate call to startup");
+        MTR_LOG_ERROR("%@ Unexpected duplicate call to startup", self);
         return NO;
     }
 
@@ -394,24 +410,24 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
 
         if (startupParams.vendorID == nil || [startupParams.vendorID unsignedShortValue] == chip::VendorId::Common) {
             // Shouldn't be using the "standard" vendor ID for actual devices.
-            MTR_LOG_ERROR("%@ is not a valid vendorID to initialize a device controller with", startupParams.vendorID);
+            MTR_LOG_ERROR("%@ %@ is not a valid vendorID to initialize a device controller with", self, startupParams.vendorID);
             return;
         }
 
         if (startupParams.operationalCertificate == nil && startupParams.nodeID == nil) {
-            MTR_LOG_ERROR("Can't start a controller if we don't know what node id it is");
+            MTR_LOG_ERROR("%@ Can't start a controller if we don't know what node id it is", self);
             return;
         }
 
         if ([startupParams keypairsMatchCertificates] == NO) {
-            MTR_LOG_ERROR("Provided keypairs do not match certificates");
+            MTR_LOG_ERROR("%@ Provided keypairs do not match certificates", self);
             return;
         }
 
         if (startupParams.operationalCertificate != nil && startupParams.operationalKeypair == nil
             && (!startupParams.fabricIndex.HasValue()
                 || !startupParams.keystore->HasOpKeypairForFabric(startupParams.fabricIndex.Value()))) {
-            MTR_LOG_ERROR("Have no operational keypair for our operational certificate");
+            MTR_LOG_ERROR("%@ Have no operational keypair for our operational certificate", self);
             return;
         }
 
@@ -574,9 +590,12 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
 
         self->_storedFabricIndex = fabricIdx;
         commissionerInitialized = YES;
+
+        MTR_LOG("%@ startup succeeded for nodeID 0x%016llX", self, self->_cppCommissioner->GetNodeId());
     });
 
     if (commissionerInitialized == NO) {
+        MTR_LOG_ERROR("%@ startup failed", self);
         [self cleanupAfterStartup];
         return NO;
     }
@@ -587,7 +606,7 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
     // above.
     if (![self setOperationalCertificateIssuer:startupParams.operationalCertificateIssuer
                                          queue:startupParams.operationalCertificateIssuerQueue]) {
-        MTR_LOG_ERROR("operationalCertificateIssuer and operationalCertificateIssuerQueue must both be nil or both be non-nil");
+        MTR_LOG_ERROR("%@ operationalCertificateIssuer and operationalCertificateIssuerQueue must both be nil or both be non-nil", self);
         [self cleanupAfterStartup];
         return NO;
     }
@@ -595,16 +614,29 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
     if (_controllerDataStore) {
         // If the storage delegate supports the bulk read API, then a dictionary of nodeID => cluster data dictionary would be passed to the handler. Otherwise this would be a no-op, and stored attributes for MTRDevice objects will be loaded lazily in -deviceForNodeID:.
         [_controllerDataStore fetchAttributeDataForAllDevices:^(NSDictionary<NSNumber *, NSDictionary<MTRClusterPath *, MTRDeviceClusterData *> *> * _Nonnull clusterDataByNode) {
-            MTR_LOG_INFO("Loaded attribute values for %lu nodes from storage for controller uuid %@", static_cast<unsigned long>(clusterDataByNode.count), self->_uniqueIdentifier);
+            MTR_LOG("%@ Loaded attribute values for %lu nodes from storage for controller uuid %@", self, static_cast<unsigned long>(clusterDataByNode.count), self->_uniqueIdentifier);
 
             std::lock_guard lock(self->_deviceMapLock);
+            NSMutableArray * deviceList = [NSMutableArray array];
             for (NSNumber * nodeID in clusterDataByNode) {
                 NSDictionary * clusterData = clusterDataByNode[nodeID];
                 MTRDevice * device = [self _setupDeviceForNodeID:nodeID prefetchedClusterData:clusterData];
-                MTR_LOG_INFO("Loaded %lu cluster data from storage for %@", static_cast<unsigned long>(clusterData.count), device);
+                MTR_LOG("%@ Loaded %lu cluster data from storage for %@", self, static_cast<unsigned long>(clusterData.count), device);
+
+                [deviceList addObject:device];
             }
+
+#define kSecondsToWaitBeforeAPIClientRetainsMTRDevice 60
+            // Keep the devices retained for a while, in case API client doesn't immediately retain them.
+            //
+            // Note that this is just an optimization to avoid throwing the information away and immediately
+            // re-reading it from storage.
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t) (kSecondsToWaitBeforeAPIClientRetainsMTRDevice * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                MTR_LOG("%@ un-retain devices loaded at startup %lu", self, static_cast<unsigned long>(deviceList.count));
+            });
         }];
     }
+    MTR_LOG("MTRDeviceController startup: %@", self);
 
     return YES;
 }
@@ -615,7 +647,7 @@ static NSString * const kLocalTestUserDefaultSubscriptionPoolSizeOverrideKey = @
 
     NSNumber * nodeID = [self syncRunOnWorkQueueWithReturnValue:block error:nil];
     if (!nodeID) {
-        MTR_LOG_ERROR("A controller has no node id if it has not been started");
+        MTR_LOG_ERROR("%@ A controller has no node id if it has not been started", self);
     }
 
     return nodeID;
@@ -631,7 +663,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
                                    newNodeID:(NSNumber *)newNodeID
                                        error:(NSError * __autoreleasing *)error
 {
-    MTR_LOG_DEFAULT("Setting up commissioning session for device ID 0x%016llX with setup payload %@", newNodeID.unsignedLongLongValue, payload);
+    MTR_LOG("Setting up commissioning session for device ID 0x%016llX with setup payload %@", newNodeID.unsignedLongLongValue, payload);
 
     [[MTRMetricsCollector sharedInstance] resetMetrics];
 
@@ -684,7 +716,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
                                             newNodeID:(NSNumber *)newNodeID
                                                 error:(NSError * __autoreleasing *)error
 {
-    MTR_LOG_DEFAULT("Setting up commissioning session for already-discovered device %@ and device ID 0x%016llX with setup payload %@", discoveredDevice, newNodeID.unsignedLongLongValue, payload);
+    MTR_LOG("%@ Setting up commissioning session for already-discovered device %@ and device ID 0x%016llX with setup payload %@", self, discoveredDevice, newNodeID.unsignedLongLongValue, payload);
 
     [[MTRMetricsCollector sharedInstance] resetMetrics];
 
@@ -942,8 +974,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     };
 
     MTRBaseDevice * device = [self syncRunOnWorkQueueWithReturnValue:block error:error];
-    MTR_LOG_DEFAULT("Getting device being commissioned with node ID 0x%016llX: %@ (error: %@)",
-        nodeID.unsignedLongLongValue, device, (error ? *error : nil));
+    MTR_LOG("%@ Getting device being commissioned with node ID 0x%016llX: %@ (error: %@)", self, nodeID.unsignedLongLongValue, device, (error ? *error : nil));
     return device;
 }
 
@@ -963,7 +994,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     // which will be in exactly the state it would be in if it were created
     // while we were running and then we got shut down.
     if ([self isRunning]) {
-        _nodeIDToDeviceMap[nodeID] = deviceToReturn;
+        [_nodeIDToDeviceMap setObject:deviceToReturn forKey:nodeID];
     }
 
     if (prefetchedClusterData) {
@@ -973,7 +1004,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     } else if (_controllerDataStore) {
         // Load persisted cluster data if they exist.
         NSDictionary * clusterData = [_controllerDataStore getStoredClusterDataForNodeID:nodeID];
-        MTR_LOG_INFO("Loaded %lu cluster data from storage for %@", static_cast<unsigned long>(clusterData.count), deviceToReturn);
+        MTR_LOG("%@ Loaded %lu cluster data from storage for %@", self, static_cast<unsigned long>(clusterData.count), deviceToReturn);
         if (clusterData.count) {
             [deviceToReturn setPersistedClusterData:clusterData];
         }
@@ -987,13 +1018,15 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
         }
     }
 
+    [deviceToReturn setStorageBehaviorConfiguration:_storageBehaviorConfiguration];
+
     return deviceToReturn;
 }
 
 - (MTRDevice *)deviceForNodeID:(NSNumber *)nodeID
 {
     std::lock_guard lock(_deviceMapLock);
-    MTRDevice * deviceToReturn = _nodeIDToDeviceMap[nodeID];
+    MTRDevice * deviceToReturn = [_nodeIDToDeviceMap objectForKey:nodeID];
     if (!deviceToReturn) {
         deviceToReturn = [self _setupDeviceForNodeID:nodeID prefetchedClusterData:nil];
     }
@@ -1005,12 +1038,12 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
 {
     std::lock_guard lock(_deviceMapLock);
     auto * nodeID = device.nodeID;
-    MTRDevice * deviceToRemove = _nodeIDToDeviceMap[nodeID];
+    MTRDevice * deviceToRemove = [_nodeIDToDeviceMap objectForKey:nodeID];
     if (deviceToRemove == device) {
         [deviceToRemove invalidate];
-        _nodeIDToDeviceMap[nodeID] = nil;
+        [_nodeIDToDeviceMap removeObjectForKey:nodeID];
     } else {
-        MTR_LOG_ERROR("Error: Cannot remove device %p with nodeID %llu", device, nodeID.unsignedLongLongValue);
+        MTR_LOG_ERROR("%@ Error: Cannot remove device %p with nodeID %llu", self, device, nodeID.unsignedLongLongValue);
     }
 }
 
@@ -1020,7 +1053,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     std::lock_guard lock(_deviceMapLock);
     NSMutableDictionary<NSNumber *, NSNumber *> * deviceAttributeCounts = [NSMutableDictionary dictionary];
     for (NSNumber * nodeID in _nodeIDToDeviceMap) {
-        deviceAttributeCounts[nodeID] = @([_nodeIDToDeviceMap[nodeID] unitTestAttributeCount]);
+        deviceAttributeCounts[nodeID] = @([[_nodeIDToDeviceMap objectForKey:nodeID] unitTestAttributeCount]);
     }
     return deviceAttributeCounts;
 }
@@ -1092,7 +1125,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
         chip::CommissioneeDeviceProxy * deviceProxy;
 
         auto errorCode = CHIP_NO_ERROR;
-        MATTER_LOG_METRIC_SCOPE(kMetricPASEVerifierForSetupCode, errorCode);
+        MATTER_LOG_METRIC_SCOPE(kMetricAttestationChallengeForDevice, errorCode);
 
         errorCode = self->_cppCommissioner->GetDeviceBeingCommissioned([deviceID unsignedLongLongValue], &deviceProxy);
         VerifyOrReturnValue(![MTRDeviceController checkForError:errorCode logMsg:kErrorGetCommissionee error:nil], nil);
@@ -1118,7 +1151,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     }
 
     if (![endpoint associateWithController:self]) {
-        MTR_LOG_ERROR("Failed to associate MTRServerEndpoint with MTRDeviceController");
+        MTR_LOG_ERROR("%@ Failed to associate MTRServerEndpoint with MTRDeviceController", self);
         [_factory removeServerEndpoint:endpoint];
         return NO;
     }
@@ -1126,11 +1159,11 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     [self asyncDispatchToMatterQueue:^() {
         [self->_serverEndpoints addObject:endpoint];
         [endpoint registerMatterEndpoint];
-        MTR_LOG_DEFAULT("Added server endpoint %u to controller %@", static_cast<chip::EndpointId>(endpoint.endpointID.unsignedLongLongValue),
+        MTR_LOG("%@ Added server endpoint %u to controller %@", self, static_cast<chip::EndpointId>(endpoint.endpointID.unsignedLongLongValue),
             self->_uniqueIdentifier);
     }
         errorHandler:^(NSError * error) {
-            MTR_LOG_ERROR("Unexpected failure dispatching to Matter queue on running controller in addServerEndpoint, adding endpoint %u",
+            MTR_LOG_ERROR("%@ Unexpected failure dispatching to Matter queue on running controller in addServerEndpoint, adding endpoint %u", self,
                 static_cast<chip::EndpointId>(endpoint.endpointID.unsignedLongLongValue));
         }];
     return YES;
@@ -1154,7 +1187,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     // tearing it down.
     [self asyncDispatchToMatterQueue:^() {
         [self removeServerEndpointOnMatterQueue:endpoint];
-        MTR_LOG_DEFAULT("Removed server endpoint %u from controller %@", static_cast<chip::EndpointId>(endpoint.endpointID.unsignedLongLongValue),
+        MTR_LOG("%@ Removed server endpoint %u from controller %@", self, static_cast<chip::EndpointId>(endpoint.endpointID.unsignedLongLongValue),
             self->_uniqueIdentifier);
         if (queue != nil && completion != nil) {
             dispatch_async(queue, completion);
@@ -1162,7 +1195,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     }
         errorHandler:^(NSError * error) {
             // Error means we got shut down, so the endpoint is removed now.
-            MTR_LOG_DEFAULT("controller %@ already shut down, so endpoint %u has already been removed", self->_uniqueIdentifier,
+            MTR_LOG("%@ controller already shut down, so endpoint %u has already been removed", self,
                 static_cast<chip::EndpointId>(endpoint.endpointID.unsignedLongLongValue));
             if (queue != nil && completion != nil) {
                 dispatch_async(queue, completion);
@@ -1187,7 +1220,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
         return NO;
     }
 
-    MTR_LOG_ERROR("Error: %@", logMsg);
+    MTR_LOG_ERROR("%@ Error: %@", self, logMsg);
 
     [self cleanup];
 
@@ -1208,7 +1241,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
         return NO;
     }
 
-    MTR_LOG_ERROR("Error(%" CHIP_ERROR_FORMAT "): %@", errorCode.Format(), logMsg);
+    MTR_LOG_ERROR("Error(%" CHIP_ERROR_FORMAT "): %@ %@", errorCode.Format(), self, logMsg);
 
     return YES;
 }
@@ -1219,7 +1252,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
         return NO;
     }
 
-    MTR_LOG_ERROR("Error(%" CHIP_ERROR_FORMAT "): %s", errorCode.Format(), [logMsg UTF8String]);
+    MTR_LOG_ERROR("Error(%" CHIP_ERROR_FORMAT "): %@ %s", errorCode.Format(), self, [logMsg UTF8String]);
     if (error) {
         *error = [MTRError errorForCHIPErrorCode:errorCode];
     }
@@ -1238,7 +1271,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
         return YES;
     }
 
-    MTR_LOG_ERROR("Error: %s", [kErrorNotRunning UTF8String]);
+    MTR_LOG_ERROR("MTRDeviceController: %@ Error: %s", self, [kErrorNotRunning UTF8String]);
     if (error) {
         *error = [MTRError errorForCHIPErrorCode:CHIP_ERROR_INCORRECT_STATE];
     }
@@ -1247,6 +1280,30 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
 }
 
 - (void)getSessionForNode:(chip::NodeId)nodeID completion:(MTRInternalDeviceConnectionCallback)completion
+{
+    // Get the corresponding MTRDevice object to determine if the case/subscription pool is to be used
+    MTRDevice * device = [self deviceForNodeID:@(nodeID)];
+
+    // In the case that this device is known to use thread, queue this with subscription attempts as well, to
+    // help with throttling Thread traffic.
+    if ([device deviceUsesThread]) {
+        MTRAsyncWorkItem * workItem = [[MTRAsyncWorkItem alloc] initWithQueue:dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0)];
+        [workItem setReadyHandler:^(id _Nonnull context, NSInteger retryCount, MTRAsyncWorkCompletionBlock _Nonnull workItemCompletion) {
+            MTRInternalDeviceConnectionCallback completionWrapper = ^(chip::Messaging::ExchangeManager * _Nullable exchangeManager,
+                const chip::Optional<chip::SessionHandle> & session, NSError * _Nullable error, NSNumber * _Nullable retryDelay) {
+                completion(exchangeManager, session, error, retryDelay);
+                workItemCompletion(MTRAsyncWorkComplete);
+            };
+            [self directlyGetSessionForNode:nodeID completion:completionWrapper];
+        }];
+
+        [_concurrentSubscriptionPool enqueueWorkItem:workItem descriptionWithFormat:@"device controller getSessionForNode nodeID: 0x%016llX", nodeID];
+    } else {
+        [self directlyGetSessionForNode:nodeID completion:completion];
+    }
+}
+
+- (void)directlyGetSessionForNode:(chip::NodeId)nodeID completion:(MTRInternalDeviceConnectionCallback)completion
 {
     [self
         asyncGetCommissionerOnMatterQueue:^(chip::Controller::DeviceCommissioner * commissioner) {
@@ -1446,7 +1503,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     // Don't use deviceForNodeID here, because we don't want to create the
     // device if it does not already exist.
     os_unfair_lock_lock(&_deviceMapLock);
-    MTRDevice * device = _nodeIDToDeviceMap[@(nodeID)];
+    MTRDevice * device = [_nodeIDToDeviceMap objectForKey:@(nodeID)];
     os_unfair_lock_unlock(&_deviceMapLock);
 
     if (device == nil) {
@@ -1833,17 +1890,17 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
 - (BOOL)openPairingWindow:(uint64_t)deviceID duration:(NSUInteger)duration error:(NSError * __autoreleasing *)error
 {
     if (duration > UINT16_MAX) {
-        MTR_LOG_ERROR("Error: Duration %tu is too large. Max value %d", duration, UINT16_MAX);
+        MTR_LOG_ERROR("%@ Error: Duration %lu is too large. Max value %d", self, static_cast<unsigned long>(duration), UINT16_MAX);
         if (error) {
             *error = [MTRError errorForCHIPErrorCode:CHIP_ERROR_INVALID_INTEGER_VALUE];
         }
         return NO;
     }
 
-    __block CHIP_ERROR errorCode = CHIP_NO_ERROR;
-    MATTER_LOG_METRIC_SCOPE(kMetricOpenPairingWindow, errorCode);
-
     auto block = ^BOOL {
+        CHIP_ERROR errorCode = CHIP_NO_ERROR;
+        MATTER_LOG_METRIC_SCOPE(kMetricOpenPairingWindow, errorCode);
+
         errorCode = chip::Controller::AutoCommissioningWindowOpener::OpenBasicCommissioningWindow(
             self->_cppCommissioner, deviceID, chip::System::Clock::Seconds16(static_cast<uint16_t>(duration)));
         return ![MTRDeviceController checkForError:errorCode logMsg:kErrorOpenPairingWindow error:error];
@@ -1859,7 +1916,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
                                  error:(NSError * __autoreleasing *)error
 {
     if (duration > UINT16_MAX) {
-        MTR_LOG_ERROR("Error: Duration %tu is too large. Max value %d", duration, UINT16_MAX);
+        MTR_LOG_ERROR("%@ Error: Duration %lu is too large. Max value %d", self, static_cast<unsigned long>(duration), UINT16_MAX);
         if (error) {
             *error = [MTRError errorForCHIPErrorCode:CHIP_ERROR_INVALID_INTEGER_VALUE];
         }
@@ -1867,7 +1924,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     }
 
     if (discriminator > 0xfff) {
-        MTR_LOG_ERROR("Error: Discriminator %tu is too large. Max value %d", discriminator, 0xfff);
+        MTR_LOG_ERROR("%@ Error: Discriminator %lu is too large. Max value %d", self, static_cast<unsigned long>(discriminator), 0xfff);
         if (error) {
             *error = [MTRError errorForCHIPErrorCode:CHIP_ERROR_INVALID_INTEGER_VALUE];
         }
@@ -1878,7 +1935,7 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
     MATTER_LOG_METRIC_SCOPE(kMetricOpenPairingWindow, errorCode);
 
     if (!chip::CanCastTo<uint32_t>(setupPIN) || !chip::SetupPayload::IsValidSetupPIN(static_cast<uint32_t>(setupPIN))) {
-        MTR_LOG_ERROR("Error: Setup pin %lu is not valid", static_cast<unsigned long>(setupPIN));
+        MTR_LOG_ERROR("%@ Error: Setup pin %lu is not valid", self, static_cast<unsigned long>(setupPIN));
         errorCode = CHIP_ERROR_INVALID_INTEGER_VALUE;
         if (error) {
             *error = [MTRError errorForCHIPErrorCode:errorCode];
@@ -1900,11 +1957,11 @@ static inline void emitMetricForSetupPayload(MTRSetupPayload * payload)
         std::string outCode;
 
         if (CHIP_NO_ERROR != (errorCode = generator.payloadDecimalStringRepresentation(outCode))) {
-            MTR_LOG_ERROR("Failed to get decimal setup code");
+            MTR_LOG_ERROR("%@ Failed to get decimal setup code", self);
             return nil;
         }
 
-        MTR_LOG_ERROR("Setup code is %s", outCode.c_str());
+        MTR_LOG_ERROR("%@ Setup code is %s", self, outCode.c_str());
         return [NSString stringWithCString:outCode.c_str() encoding:[NSString defaultCStringEncoding]];
     };
 
