@@ -317,6 +317,10 @@ if (CONFIG_ENABLE_MATTER_EVENT_LIST)
     chip_gn_arg_append  ("enable_eventlist_attribute" "true")
 endif()
 
+if (CONFIG_ENABLE_CHIP_O_WIFI_PAF)
+    chip_gn_arg_append("chip_device_config_enable_wifipaf" "true")
+endif()
+
 set(args_gn_input "${CMAKE_CURRENT_BINARY_DIR}/args.gn.in")
 file(GENERATE OUTPUT "${args_gn_input}" CONTENT "${chip_gn_args}")
 

@@ -406,6 +406,13 @@ CHIP_ERROR ConnectivityManagerImpl::InitWiFi()
     // Ensure that ESP station mode is enabled.
     ReturnErrorOnFailure(Internal::ESP32Utils::EnableStationMode());
 
+    // esp_wifi_nan_start does a lot of things that it should not, consider using the APIs that are really needed?
+    wifi_nan_config_t nanConfig;
+    nanConfig.usd_enabled = true;
+    esp_err_t err = esp_wifi_nan_start(&nanConfig);
+    VerfiyOrReturnError(err == ESP_OK, CHIP_ERROR_INTERNAL, ChipLogError(DeviceLayer, "esp_wifi_nan_start failed, esp_err:%d", err));
+
+
     // If there is no persistent station provision...
     if (!IsWiFiStationProvisioned())
     {
@@ -491,6 +498,7 @@ void ConnectivityManagerImpl::OnWiFiPlatformEvent(const ChipDeviceEvent * event)
                 ChipLogProgress(DeviceLayer, "WIFI_EVENT_STA_STOP");
                 DriveStationState();
                 break;
+
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFI_AP
             case WIFI_EVENT_AP_START:
                 ChipLogProgress(DeviceLayer, "WIFI_EVENT_AP_START");
@@ -507,6 +515,13 @@ void ConnectivityManagerImpl::OnWiFiPlatformEvent(const ChipDeviceEvent * event)
                 MaintainOnDemandWiFiAP();
                 break;
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFI_AP
+
+#ifdef CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+            case WIFI_EVENT_NAN_RECEIVE:
+                ChipLogProgress(DeviceLayer, "WIFI_EVENT_NAN_RECEIVE");
+                OnNanReceived(static_cast<wifi_event_nan_receive_t *>(&event->Platform.ESPSystemEvent.Data.NanReceive));
+                break;
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
             default:
                 break;
             }

@@ -184,6 +184,14 @@ void PlatformManagerImpl::HandleESPSystemEvent(void * arg, esp_event_base_t even
             memcpy(&event.Platform.ESPSystemEvent.Data.WiFiApProbeReqRecved, eventData,
                    sizeof(event.Platform.ESPSystemEvent.Data.WiFiApProbeReqRecved));
             break;
+
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+        case WIFI_EVENT_NAN_RECEIVE:
+            memcpy(&event.Platform.ESPSystemEvent.Data.WiFiNanReceived, eventData,
+                   sizeof(event.Platform.ESPSystemEvent.Data.WiFiNanReceived));
+            break;
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+
         default:
             break;
         }

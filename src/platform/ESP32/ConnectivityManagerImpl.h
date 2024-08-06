@@ -32,9 +32,14 @@
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFI
 #include <platform/internal/GenericConnectivityManagerImpl_WiFi.h>
+
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+#include <transport/raw/WiFiPAF.h>
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+
 #else
 #include <platform/internal/GenericConnectivityManagerImpl_NoWiFi.h>
-#endif
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFI
 
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
 #include <platform/internal/GenericConnectivityManagerImpl_Thread.h>
@@ -173,6 +178,21 @@ private:
     void OnEthernetIPv4AddressLost(void);
     void OnEthernetIPv6AddressAvailable(const ip_event_got_ip6_t & got_ip);
 #endif // CHIP_DEVICE_CONFIG_ENABLE_ETHERNET
+
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+    void OnNanReceive(wifi_event_nan_receive_t * eventData);
+    CHIP_ERROR _WiFiPAFSend(chip::System::PacketBufferHandle && msgBuf);
+
+    Transport::WiFiPAFBase * _GetWiFiPAF();
+    void _SetWiFiPAF(Transport::WiFiPAFBase * pWiFiPAF);
+
+    Transport::WiFiPAFBase * pmWiFiPAF;
+
+    CHIP_ERROR _SetWiFiPAFAdvertisingEnabled(WiFiPAFAdvertiseParam & args);
+    CHIP_ERROR _WiFiPAFPublish(WiFiPAFAdvertiseParam & args);
+    CHIP_ERROR _WiFiPAFCancelPublish();
+#endif
+
 
     // ===== Members for internal use by the following friends.
 

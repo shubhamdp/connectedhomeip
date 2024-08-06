@@ -211,6 +211,12 @@ static_library("ESP32") {
     ]
   }
 
+  if (chip_device_config_enable_wifipaf) {
+    sources += [
+      "ConnectivityManagerImpl_WiFi_PAF.cpp"
+    ]
+  }
+
   cflags = [
     "-Wconversion",
     "-Wundef",

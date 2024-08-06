@@ -656,6 +656,16 @@ menu "CHIP Device Layer"
 
     endmenu
 
+    menu "WiFI PAF option"
+
+        config ENABLE_CHIP_O_WIFI_PAF
+            bool "Enable WiFi PAF for commissioning"
+            default y
+            help
+                Enable support for commissioning using Wi-Fi Public Action Frame as the transport
+
+    endmenu
+
     menu "BLE Options"
         visible if BT_ENABLED
 
