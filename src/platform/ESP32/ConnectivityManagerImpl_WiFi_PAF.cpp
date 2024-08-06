@@ -18,7 +18,9 @@
 /* this file behaves like a config.h, comes first */
 #include <platform/internal/CHIPDeviceLayerInternal.h>
 
+#include <platform/ESP32/ConnectivityManagerImpl.h>
 #include <platform/ConnectivityManager.h>
+#include <platform/CommissionableDataProvider.h>
 
 #include <lib/support/CHIPMemString.h>
 #include <lib/support/CodeUtils.h>
@@ -28,8 +30,7 @@
 #include "esp_wifi.h"
 #include "esp_nan.h"
 #include "esp_event.h"
-
-using namespace chip;
+#include "esp_mac.h"
 
 #define SERVICE_NAME "_matterc._udp"
 
@@ -49,13 +50,13 @@ struct PAFPublishSSI
 };
 #pragma pack(pop)
 
+namespace chip {
+namespace DeviceLayer {
+
 CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(ConnectivityManager::WiFiPAFAdvertiseParam & InArgs)
 {
+    ChipLogError(DeviceLayer, "WiFi-PAF: Publish");
     struct PAFPublishSSI PafPublish_ssi;
-
-    VerifyOrReturnError(
-        (strlen(args) + strlen(NAN_PUBLISH_SSI_TAG) + (sizeof(struct PAFPublishSSI) * 2) < MAX_PAF_PUBLISH_SSI_BUFLEN),
-        CHIP_ERROR_BUFFER_TOO_SMALL);
 
     PafPublish_ssi.DevOpCode = 0;
 
@@ -75,36 +76,59 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(ConnectivityManager::WiFiPAF
     wifi_nan_config_t nanConfig;
     nanConfig.usd_enabled = true;
     esp_err_t err = esp_wifi_nan_start(&nanConfig);
-    VerfiyOrReturnError(err == ESP_OK, CHIP_ERROR_INTERNAL, ChipLogError(DeviceLayer, "esp_wifi_nan_start failed, esp_err:%d", err));
+    VerifyOrReturnError(err == ESP_OK, CHIP_ERROR_INTERNAL, ChipLogError(DeviceLayer, "esp_wifi_nan_start failed, esp_err:%d", err));
 
     // TODO: Some parameters should be configurable somehow
     wifi_nan_publish_cfg_t publishConfig;
     memset(&publishConfig, 0, sizeof(publishConfig));
 
     Platform::CopyString(publishConfig.service_name, SERVICE_NAME);
-    publishConfig.type = NAN_PUBLISH_UNSOLICITED | NAN_PUBLISH_SOLICITED;
+    publishConfig.type = static_cast<wifi_nan_service_type_t>(NAN_PUBLISH_UNSOLICITED | NAN_PUBLISH_SOLICITED);
     publishConfig.srv_proto_type = PROTOCOL_CSA_MATTER;
-    publishConfig.ssi = static_cast<uint8_t *>(&PafPublish_ssi);
-    publishConfig.ssi_len = sizeof(PafPublish_ssi);
-    /*publishConfig.ttl = ;*/
-    /*publishConfig.usd_chan_list = ;*/
-    /*publishConfig.usd_chan_list_len = ;*/
+
+    uint8_t MATTER_SERVICE_DATA[] = { 0x00, 0x00, 0x0F, 0x00, 0x01, 0x80, 0xF1, 0xFF };
+    publishConfig.ssi = MATTER_SERVICE_DATA;
+    publishConfig.ssi_len = sizeof(MATTER_SERVICE_DATA);
+
+    /*publishConfig.ssi = reinterpret_cast<uint8_t *>(&PafPublish_ssi);*/
+    /*publishConfig.ssi_len = sizeof(PafPublish_ssi);*/
+    publishConfig.ttl = 300;
+
+    uint8_t chan_list[] = {1,6,11};
+    publishConfig.usd_chan_list = chan_list;
+    publishConfig.usd_chan_list_len = sizeof(chan_list) / sizeof(chan_list[0]);
+
+    printf("\nssi:");
+    for (int i = 0; i < publishConfig.ssi_len; i++)
+    {
+        printf("%02X", publishConfig.ssi[i]);
+    }
+    printf("\n");
+
+    printf("service name -- %s\n", publishConfig.service_name);
+    printf("srv_proto_type -- %d\n", publishConfig.srv_proto_type);
+    printf("ttl -- %d\n", publishConfig.ttl);
 
     mNanPublishId = esp_wifi_nan_publish_service(&publishConfig, false /* ndp_resp_needed */);
-    VerifyOrReturnError(publishId != 0, CHIP_ERROR_INTERNAL, ChipLogError(DeviceLayer, "esp_wifi_nan_publish_service failed"));
+    VerifyOrReturnError(mNanPublishId != 0, CHIP_ERROR_INTERNAL, ChipLogError(DeviceLayer, "esp_wifi_nan_publish_service failed"));
+
+    ChipLogProgress(DeviceLayer, "WiFi-PAF: Publish Done, id: %u", mNanPublishId);
 
     return CHIP_NO_ERROR;
 }
 
 CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFCancelPublish()
 {
+    ChipLogError(DeviceLayer, "WiFi-PAF: Cancel Publish");
+
     esp_err_t err = esp_wifi_nan_cancel_publish(mNanPublishId);
     VerifyOrReturnError(err == ESP_OK, CHIP_ERROR_INTERNAL, ChipLogError(DeviceLayer, "esp_wifi_nan_cancel_publish failed"));
-    return ESP_OK;
+    return CHIP_NO_ERROR;
 }
 
 CHIP_ERROR ConnectivityManagerImpl::_SetWiFiPAFAdvertisingEnabled(WiFiPAFAdvertiseParam & args)
 {
+    ChipLogProgress(DeviceLayer, "WiFi-PAF: %s", args.enable ? "Enable" : "Disable");
     return args.enable ? _WiFiPAFPublish(args) : _WiFiPAFCancelPublish();
 }
 
@@ -130,7 +154,7 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFCancelConnect()
     return CHIP_ERROR_NOT_IMPLEMENTED;
 }
 
-void ConnectivityManagerImpl::OnNanReceived(wifi_event_nan_receive_t * eventData)
+void ConnectivityManagerImpl::OnNanReceive(const wifi_event_nan_receive_t * eventData)
 {
     ChipLogProgress(DeviceLayer, "Our service identifier: %u", eventData->inst_id);
     ChipLogProgress(DeviceLayer, "Peer service identifier: %u", eventData->peer_inst_id);
@@ -138,6 +162,8 @@ void ConnectivityManagerImpl::OnNanReceived(wifi_event_nan_receive_t * eventData
     ChipLogProgress(DeviceLayer, "ssi len: %u", eventData->ssi_len);
 
     VerifyOrReturn(eventData->ssi_len > 0, ChipLogError(DeviceLayer, "SSI length is zero"));
+
+    mNanPeerInstanceId = eventData->peer_inst_id;
 
     System::PacketBufferHandle buf;
     buf = System::PacketBufferHandle::NewWithData(eventData->peer_svc_info, eventData->ssi_len);
@@ -151,13 +177,13 @@ void ConnectivityManagerImpl::OnNanReceived(wifi_event_nan_receive_t * eventData
 
 CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFSend(chip::System::PacketBufferHandle && msgBuf)
 {
-    ChipLogProgress(DeviceLayer, "WiFi-PAF: Sending %lu bytes", msgBuf->DataLength());
+    ChipLogProgress(DeviceLayer, "WiFi-PAF: Sending %u bytes", msgBuf->DataLength());
 
     CHIP_ERROR ret = CHIP_NO_ERROR;
 
     if (msgBuf.IsNull())
     {
-        ChipLogError(DeviceLayer, "WiFi-PAF: Invalid Packet (%lu)", msgBuf->DataLength());
+        ChipLogError(DeviceLayer, "WiFi-PAF: Invalid Packet (%u)", msgBuf->DataLength());
         return CHIP_ERROR_INVALID_ARGUMENT;
     }
 
@@ -170,7 +196,7 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFSend(chip::System::PacketBufferHandl
         if (msgBuf->HasChainedBuffer())
         {
             ret = CHIP_ERROR_OUTBOUND_MESSAGE_TOO_BIG;
-            ChipLogError(DeviceLayer, "WiFi-PAF: Outbound message too big (%lu), skip temporally", msgBuf->DataLength());
+            ChipLogError(DeviceLayer, "WiFi-PAF: Outbound message too big (%u), skip temporally", msgBuf->DataLength());
             return ret;
         }
     }
@@ -179,9 +205,9 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFSend(chip::System::PacketBufferHandl
     memset(&msgParams, 0, sizeof(msgParams));
 
     msgParams.inst_id = mNanPublishId;
-    msgParams.peer_inst_id mNanPeerInstanceId;
+    msgParams.peer_inst_id  = mNanPeerInstanceId;
     msgParams.protocol = PROTOCOL_CSA_MATTER;
-    msgParams.ssi_len = msgBuf->DataLength();
+    msgParams.ssi_len = static_cast<uint16_t>(msgBuf->DataLength());
     msgParams.ssi = msgBuf->Start();
 
     esp_err_t err = esp_wifi_nan_send_message(&msgParams);
@@ -192,13 +218,5 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFSend(chip::System::PacketBufferHandl
     return CHIP_NO_ERROR;
 }
 
-Transport::WiFiPAFBase * ConnectivityManagerImpl::_GetWiFiPAF()
-{
-    return pmWiFiPAF;
-}
-
-void ConnectivityManagerImpl::_SetWiFiPAF(Transport::WiFiPAFBase * pWiFiPAF)
-{
-    pmWiFiPAF = pWiFiPAF;
-    return;
-}
+} // namespace DeviceLayer
+} // namespace chip

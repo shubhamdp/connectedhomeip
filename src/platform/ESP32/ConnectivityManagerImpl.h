@@ -180,18 +180,26 @@ private:
 #endif // CHIP_DEVICE_CONFIG_ENABLE_ETHERNET
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
-    void OnNanReceive(wifi_event_nan_receive_t * eventData);
+    void OnNanReceive(const wifi_event_nan_receive_t * eventData);
     CHIP_ERROR _WiFiPAFSend(chip::System::PacketBufferHandle && msgBuf);
 
+    Transport::WiFiPAFBase * pmWiFiPAF;
     Transport::WiFiPAFBase * _GetWiFiPAF();
     void _SetWiFiPAF(Transport::WiFiPAFBase * pWiFiPAF);
 
-    Transport::WiFiPAFBase * pmWiFiPAF;
 
     CHIP_ERROR _SetWiFiPAFAdvertisingEnabled(WiFiPAFAdvertiseParam & args);
     CHIP_ERROR _WiFiPAFPublish(WiFiPAFAdvertiseParam & args);
     CHIP_ERROR _WiFiPAFCancelPublish();
-#endif
+
+    uint8_t mNanPublishId;
+    uint8_t mNanPeerInstanceId;
+
+    // these are for subscriber and no-op
+    CHIP_ERROR _WiFiPAFConnect(const SetupDiscriminator & connDiscriminator, void * appState, OnConnectionCompleteFunct onSuccess,
+                               OnConnectionErrorFunct onError);
+    CHIP_ERROR _WiFiPAFCancelConnect();
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
 
 
     // ===== Members for internal use by the following friends.
@@ -200,6 +208,11 @@ private:
     friend ConnectivityManagerImpl & ConnectivityMgrImpl(void);
 
     static ConnectivityManagerImpl sInstance;
+
+public:
+      bool IsWiFiManagementStarted() { return true; }
+      void StartWiFiManagement() {}
+
 };
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFI

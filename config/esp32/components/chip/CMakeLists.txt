@@ -384,6 +384,8 @@ endif()
 # For more, see: https://github.com/project-chip/connectedhomeip/issues/27636
 if (CHIP_CODEGEN_PREGEN_DIR)
     set(GN_CONFIGURE_COMMAND ${GN_EXECUTABLE} --root=${GN_ROOT_TARGET} gen --check ${CMAKE_CURRENT_BINARY_DIR})
+elseif(CONFIG_ENABLE_CHIP_O_WIFI_PAF)
+    set(GN_CONFIGURE_COMMAND ${GN_EXECUTABLE} --root=${GN_ROOT_TARGET} gen ${CMAKE_CURRENT_BINARY_DIR})
 else ()
     set(GN_CONFIGURE_COMMAND ${GN_EXECUTABLE} --root=${GN_ROOT_TARGET} gen --check --fail-on-unused-args ${CMAKE_CURRENT_BINARY_DIR})
 endif ()

@@ -35,6 +35,7 @@
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "esp_nan.h"
 
 #include <lwip/dns.h>
 #include <lwip/ip_addr.h>
@@ -410,7 +411,7 @@ CHIP_ERROR ConnectivityManagerImpl::InitWiFi()
     wifi_nan_config_t nanConfig;
     nanConfig.usd_enabled = true;
     esp_err_t err = esp_wifi_nan_start(&nanConfig);
-    VerfiyOrReturnError(err == ESP_OK, CHIP_ERROR_INTERNAL, ChipLogError(DeviceLayer, "esp_wifi_nan_start failed, esp_err:%d", err));
+    VerifyOrReturnError(err == ESP_OK, CHIP_ERROR_INTERNAL, ChipLogError(DeviceLayer, "esp_wifi_nan_start failed, esp_err:%d", err));
 
 
     // If there is no persistent station provision...
@@ -430,7 +431,7 @@ CHIP_ERROR ConnectivityManagerImpl::InitWiFi()
                    std::min(sizeof(wifiConfig.sta.password), strlen(CONFIG_DEFAULT_WIFI_PASSWORD)));
             wifiConfig.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
             wifiConfig.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
-            esp_err_t err              = esp_wifi_set_config(WIFI_IF_STA, &wifiConfig);
+            err              = esp_wifi_set_config(WIFI_IF_STA, &wifiConfig);
             if (err != ESP_OK)
             {
                 ChipLogError(DeviceLayer, "esp_wifi_set_config() failed: %s", esp_err_to_name(err));
@@ -519,7 +520,7 @@ void ConnectivityManagerImpl::OnWiFiPlatformEvent(const ChipDeviceEvent * event)
 #ifdef CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
             case WIFI_EVENT_NAN_RECEIVE:
                 ChipLogProgress(DeviceLayer, "WIFI_EVENT_NAN_RECEIVE");
-                OnNanReceived(static_cast<wifi_event_nan_receive_t *>(&event->Platform.ESPSystemEvent.Data.NanReceive));
+                OnNanReceive(&event->Platform.ESPSystemEvent.Data.WiFiNanReceived);
                 break;
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
             default:

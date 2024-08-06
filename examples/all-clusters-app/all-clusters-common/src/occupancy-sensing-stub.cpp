@@ -33,6 +33,7 @@ static std::unique_ptr<OccupancySensingAttrAccess>
 
 void emberAfOccupancySensingClusterInitCallback(EndpointId endpointId)
 {
+    return;
     VerifyOrDie(!gAttrAccess[endpointId]);
 
     gAttrAccess[endpointId] = std::make_unique<OccupancySensingAttrAccess>(

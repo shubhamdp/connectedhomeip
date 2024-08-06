@@ -64,16 +64,21 @@ CHIP_ERROR CHIPDeviceManager::Init(CHIPDeviceManagerCallbacks * cb)
     // Initialize the CHIP stack.
     ReturnErrorOnFailure(PlatformMgr().InitChipStack());
 
-    if (flags.Has(RendezvousInformationFlag::kBLE))
-    {
-        ConnectivityMgr().SetBLEAdvertisingEnabled(true);
-    }
-    else if (flags.Has(RendezvousInformationFlag::kSoftAP))
-    {
-        // TODO(cecille): Fix for the case where BLE and SoftAP are both enabled.`
-        ConnectivityMgr().SetBLEAdvertisingEnabled(false);
-        ConnectivityMgr().SetWiFiAPMode(ConnectivityManager::kWiFiAPMode_Enabled);
-    }
+    /*if (flags.Has(RendezvousInformationFlag::kBLE))*/
+    /*{*/
+    /*    ConnectivityMgr().SetBLEAdvertisingEnabled(true);*/
+    /*}*/
+    /*else if (flags.Has(RendezvousInformationFlag::kSoftAP))*/
+    /*{*/
+    /*    // TODO(cecille): Fix for the case where BLE and SoftAP are both enabled.`*/
+    /*    ConnectivityMgr().SetBLEAdvertisingEnabled(false);*/
+    /*    ConnectivityMgr().SetWiFiAPMode(ConnectivityManager::kWiFiAPMode_Enabled);*/
+    /*}*/
+
+    ConnectivityMgr().SetBLEAdvertisingEnabled(false);
+    ConnectivityManager::WiFiPAFAdvertiseParam args;
+    args.enable  = true;
+    ConnectivityMgr().SetWiFiPAFAdvertisingEnabled(args);
 
     // Register a function to receive events from the CHIP device layer.  Note that calls to
     // this function will happen on the CHIP event loop thread, not the app_main thread.
