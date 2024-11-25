@@ -88,6 +88,7 @@ source_set("app-main") {
     "testing/CustomCSRResponseOperationalKeyStore.h",
   ]
 
+
   public_deps = [
     ":boolean-state-configuration-test-event-trigger",
     ":device-energy-management-test-event-trigger",
