@@ -65,3 +65,18 @@ Please take an example PKI ![Indirect CRL Signing](indirect/indirect-crl.png).
     -   `indirect/Chip-Test-PAI-Delegate-FFF1-03-Cert.[pem|der]`
 
 -   PAI Delegated CRL: `indirect/Chip-Test-PAI-FFF1-Delegated-CRL.[pem|der]`
+
+
+## Sample revocation sets
+Sample revocation set for each of the above scenarios can be found in the [revocation-sets](revocation-sets) directory.
+
+Please find below the revocation sets for the respective CA:
+
+| CA | CRL | CRL Signer | Delegator | Revocation Set |
+| -- | --- | ---------- | --------- | -------------- |
+| [Chip-Test-PAA-FFF1-Cert.pem](Chip-Test-PAA-FFF1-Cert.pem) | [Chip-Test-PAA-FFF1-CRL.pem](Chip-Test-PAA-FFF1-CRL.pem) | PAA | - | [direct-revocation-set-for-paa.json](revocation-sets/direct-revocation-set-for-paa.json) |
+| [Chip-Test-PAA-FFF1-Cert.pem](Chip-Test-PAA-FFF1-Cert.pem) | [indirect/Chip-Test-PAA-FFF1-Delegated-CRL.pem](Chip-Test-PAA-FFF1-Delegated-CRL.pem) | [Chip-Test-PAA-Delegate-FFF1-Cert.pem](indirect/Chip-Test-PAA-Delegate-FFF1-Cert.pem) | PAA | [chip-test-paa-delegated-fff1-revocation-set.json](revocation-sets/chip-test-paa-delegated-fff1-revocation-set.json) |
+| [Matter-Development-PAI-FFF1-noPID-Cert.pem](Matter-Development-PAI-FFF1-noPID-Cert.pem) | [Matter-Development-PAI-FFF1-noPID-CRL.pem](Matter-Development-PAI-FFF1-noPID-CRL.pem) | PAI | - | [direct-revocation-set-for-pai.json](revocation-set/direct-revocation-set-for-pai.json) |
+| [Chip-Test-PAI-FFF1-01-Cert.pem](indirect/Chip-Test-PAI-FFF1-01-Cert.pem) | [Chip-Test-PAI-FFF1-Delegated-CRL.pem](indirect/Chip-Test-PAI-FFF1-Delegated-CRL.pem) | [Chip-Test-PAI-Delegate-FFF1-01-Cert.pem](indirect/Chip-Test-PAI-Delegate-FFF1-01-Cert.pem) | PAI | [chip-test-pai-01-delegated-fff1-revocation-set.json](revocation-set/chip-test-pai-01-delegated-fff1-revocation-set.json) |
+| [Chip-Test-PAI-FFF1-02-Cert.pem](indirect/Chip-Test-PAI-FFF1-02-Cert.pem) | [Chip-Test-PAI-FFF1-Delegated-CRL.pem](indirect/Chip-Test-PAI-FFF1-Delegated-CRL.pem) | [Chip-Test-PAI-Delegate-FFF1-02-Cert.pem](indirect/Chip-Test-PAI-Delegate-FFF1-02-Cert.pem) | PAI | [chip-test-pai-02-delegated-fff1-revocation-set.json](revocation-set/chip-test-pai-02-delegated-fff1-revocation-set.json) |
+| [Chip-Test-PAI-FFF1-03-Cert.pem](indirect/Chip-Test-PAI-FFF1-03-Cert.pem) | [Chip-Test-PAI-FFF1-Delegated-CRL.pem](indirect/Chip-Test-PAI-FFF1-Delegated-CRL.pem) | [Chip-Test-PAI-Delegate-FFF1-03-Cert.pem](indirect/Chip-Test-PAI-Delegate-FFF1-03-Cert.pem) | PAI | [chip-test-pai-03-delegated-fff1-revocation-set.json](revocation-set/chip-test-pai-03-delegated-fff1-revocation-set.json) |
