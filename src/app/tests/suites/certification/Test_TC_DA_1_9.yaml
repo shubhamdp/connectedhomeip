@@ -166,3 +166,87 @@ tests:
 
           - Factory reset the TH
       disabled: true
+
+    - label: "Step 6: Test case 1: DAC of the TH has been revoked using delegated CRL signer"
+      verification: |
+          Perform the following actions (PIs use equivalent command on their respective platform)
+
+          - On TH, run all-clusters-app with the following command line arguments:
+          ./chip-all-clusters-app --trace_decode 1 --dac_provider $CHIP_ROOT/credentials/test/revoked-attestation-certificates/dac-provider-test-vectors/indirect-revoked-dac-01.json
+
+          - Once TH(all-clusters-app) reach the commissionable state please send below mentioned command on DUT(chip-tool). Please use equivalent command on the respective platform
+          ./chip-tool pairing onnetwork-long 2 20202021 3840 --dac-revocation-set-path $CHIP_ROOT/credentials/test/revoked-attestation-certificates/revocation-sets/indirect-revocation-set.json
+
+          - Verify that TH(all-clusters-app) is not commissioned.
+
+          [1743059446.357] [56773:11565260:chip] [SVR] Failsafe timer expired
+          [1743059446.357] [56773:11565260:chip] [IN] SecureSession[0x12f704d70]: MarkForEviction Type:1 LSID:58488
+          [1743059446.357] [56773:11565260:chip] [SC] SecureSession[0x12f704d70, LSID:58488]: State change 'kActive' --> 'kPendingEviction'
+          [1743059446.357] [56773:11565260:chip] [IN] SecureSession[0x12f704d70]: Released - Type:1 LSID:58488
+          [1743059446.357] [56773:11565260:chip] [SVR] Commissioning failed (attempt 1): src/app/server/CommissioningWindowManager.cpp:89: CHIP Error 0x00000032: Timeout
+
+          - Verify DUT(chip-tool) does not commissions the TH and generates the following error.
+
+          [1743059446.355] [56783:11565324:chip] [-] Found revoked DAC in /Users/shubhampatil/esp/connectedhomeip/credentials/test/revoked-attestation-certificates/revocation-sets/indirect-revocation-set.json
+          ...
+          [1743059446.355] [56783:11565324:chip] [CTL] Failed in verifying 'Attestation Information' command received from the device: err 302. Look at AttestationVerificationResult enum to understand the errors
+          [1743059446.355] [56783:11565324:chip] [CTL] Error on commissioning step 'AttestationRevocationCheck': 'src/controller/CHIPDeviceController.cpp:1337: CHIP Error 0x000000AC: Internal error'
+
+          - Factory reset the TH
+      disabled: true
+
+    - label: "Step 7: Test case 2: PAI of the TH has been revoked using delegated CRL signer"
+      verification: |
+          Perform the following actions (PIs use equivalent command on their respective platform)
+
+          - On TH, run all-clusters-app with the following command line arguments:
+          ./chip-all-clusters-app --trace_decode 1 --dac_provider $CHIP_ROOT/credentials/test/revoked-attestation-certificates/dac-provider-test-vectors/indirect-revoked-pai-03.json
+
+          - Once TH(all-clusters-app) reach the commissionable state please send below mentioned command on DUT(chip-tool). Please use equivalent command on the respective platform
+          ./chip-tool pairing onnetwork-long 2 20202021 3840 --dac-revocation-set-path $CHIP_ROOT/credentials/test/revoked-attestation-certificates/revocation-sets/indirect-revocation-set.json
+
+          - Verify that TH(all-clusters-app) is not commissioned.
+
+          [1743059446.357] [56773:11565260:chip] [SVR] Failsafe timer expired
+          [1743059446.357] [56773:11565260:chip] [IN] SecureSession[0x12f704d70]: MarkForEviction Type:1 LSID:58488
+          [1743059446.357] [56773:11565260:chip] [SC] SecureSession[0x12f704d70, LSID:58488]: State change 'kActive' --> 'kPendingEviction'
+          [1743059446.357] [56773:11565260:chip] [IN] SecureSession[0x12f704d70]: Released - Type:1 LSID:58488
+          [1743059446.357] [56773:11565260:chip] [SVR] Commissioning failed (attempt 1): src/app/server/CommissioningWindowManager.cpp:89: CHIP Error 0x00000032: Timeout
+
+          - Verify DUT(chip-tool) does not commissions the TH and generates the following error.
+
+          [1743059607.133] [56897:11567874:chip] [-] Found revoked PAI in /Users/shubhampatil/esp/connectedhomeip/credentials/test/revoked-attestation-certificates/revocation-sets/indirect-revocation-set.json
+          [1743059607.133] [56897:11567874:chip] [CTL] Failed in verifying 'Attestation Information' command received from the device: err 202. Look at AttestationVerificationResult enum to understand the errors
+          [1743059607.133] [56897:11567874:chip] [CTL] Error on commissioning step 'AttestationRevocationCheck': 'src/controller/CHIPDeviceController.cpp:1337: CHIP Error 0x000000AC: Internal error'
+
+          - Factory reset the TH
+      disabled: true
+
+    - label: "Step 8: Test case 3: DAC and PAI of the TH has been revoked using delegated CRL signer"
+      verification: |
+          Perform the following actions (PIs use equivalent command on their respective platform)
+
+          - On TH, run all-clusters-app with the following command line arguments:
+          ./chip-all-clusters-app --trace_decode 1 --dac_provider $CHIP_ROOT/credentials/test/revoked-attestation-certificates/dac-provider-test-vectors/indirect-revoked-dac-01-pai-03.json
+
+          - Once TH(all-clusters-app) reach the commissionable state please send below mentioned command on DUT(chip-tool). Please use equivalent command on the respective platform
+          ./chip-tool pairing onnetwork-long 2 20202021 3840 --dac-revocation-set-path $CHIP_ROOT/credentials/test/revoked-attestation-certificates/revocation-sets/indirect-revocation-set.json
+
+          - Verify that TH(all-clusters-app) is not commissioned.
+
+          [1743059446.357] [56773:11565260:chip] [SVR] Failsafe timer expired
+          [1743059446.357] [56773:11565260:chip] [IN] SecureSession[0x12f704d70]: MarkForEviction Type:1 LSID:58488
+          [1743059446.357] [56773:11565260:chip] [SC] SecureSession[0x12f704d70, LSID:58488]: State change 'kActive' --> 'kPendingEviction'
+          [1743059446.357] [56773:11565260:chip] [IN] SecureSession[0x12f704d70]: Released - Type:1 LSID:58488
+          [1743059446.357] [56773:11565260:chip] [SVR] Commissioning failed (attempt 1): src/app/server/CommissioningWindowManager.cpp:89: CHIP Error 0x00000032: Timeout
+
+          - Verify DUT(chip-tool) does not commissions the TH and generates the following error.
+
+          [1743059725.837] [57066:11570600:chip] [-] Found revoked DAC in /Users/shubhampatil/esp/connectedhomeip/credentials/test/revoked-attestation-certificates/revocation-sets/indirect-revocation-set.json
+          ...
+          [1743059725.837] [57066:11570600:chip] [-] Found revoked PAI in /Users/shubhampatil/esp/connectedhomeip/credentials/test/revoked-attestation-certificates/revocation-sets/indirect-revocation-set.json
+          [1743059725.837] [57066:11570600:chip] [CTL] Failed in verifying 'Attestation Information' command received from the device: err 208. Look at AttestationVerificationResult enum to understand the errors
+          [1743059725.837] [57066:11570600:chip] [CTL] Error on commissioning step 'AttestationRevocationCheck': 'src/controller/CHIPDeviceController.cpp:1337: CHIP Error 0x000000AC: Internal error'
+
+          - Factory reset the TH
+      disabled: true
