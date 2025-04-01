@@ -83,6 +83,10 @@ static_library("ESP32") {
     "${chip_root}/src/platform:platform_base",
   ]
 
+  if (chip_device_config_enable_wifipaf) {
+    public_deps += [ "${chip_root}/src/wifipaf" ]
+  }
+
   if (chip_config_memory_management == "platform") {
     if (chip_memory_alloc_mode == "internal") {
       sources += [ "CHIPMem-PlatformInternal.cpp" ]

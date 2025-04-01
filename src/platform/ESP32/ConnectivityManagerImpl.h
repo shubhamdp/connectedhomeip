@@ -48,6 +48,11 @@
 #include <platform/internal/GenericConnectivityManagerImpl_NoBLE.h>
 #endif
 
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+#include <wifipaf/WiFiPAFEndPoint.h>
+#include <wifipaf/WiFiPAFLayer.h>
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+
 #include <lib/support/BitFlags.h>
 
 #include "esp_event.h"
@@ -174,12 +179,43 @@ private:
     void OnEthernetIPv6AddressAvailable(const ip_event_got_ip6_t & got_ip);
 #endif // CHIP_DEVICE_CONFIG_ENABLE_ETHERNET
 
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+    uint8_t mPeerInstanceId = 0;
+    uint8_t mPeerMac[6] = {0};
+
+    WiFiPAF::WiFiPAFLayer * pmWiFiPAF;
+    WiFiPAF::WiFiPAFEndPoint mWiFiPAFEndPoint;
+
+    CHIP_ERROR _WiFiPAFPublish(WiFiPAFAdvertiseParam & args);
+    CHIP_ERROR _WiFiPAFCancelPublish(uint32_t PublishId);
+    CHIP_ERROR _WiFiPAFSend(const WiFiPAF::WiFiPAFSession & TxInfo, chip::System::PacketBufferHandle && msgBuf);
+    CHIP_ERROR _WiFiPAFShutdown(uint32_t id, WiFiPAF::WiFiPafRole role);
+
+    // private ones that above would call
+    void OnNanReceive(const wifi_event_nan_receive_t & event, uint8_t * ssi);
+    void OnNanPublishTerminated();
+
+    // We do not support PAF discovery and subscribe for now
+    CHIP_ERROR _WiFiPAFSubscribe(const uint16_t & connDiscriminator, void * appState, OnConnectionCompleteFunct onSuccess,
+                                 OnConnectionErrorFunct onError) { return CHIP_ERROR_NOT_IMPLEMENTED; }
+    CHIP_ERROR _WiFiPAFCancelSubscribe(uint32_t SubscribeId) { return CHIP_ERROR_NOT_IMPLEMENTED; }
+    CHIP_ERROR _WiFiPAFCancelIncompleteSubscribe() { return CHIP_ERROR_NOT_IMPLEMENTED; }
+    void _WiFiPafSetApFreq(const uint16_t freq) { ; }
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+
     // ===== Members for internal use by the following friends.
 
     friend ConnectivityManager & ConnectivityMgr(void);
     friend ConnectivityManagerImpl & ConnectivityMgrImpl(void);
 
     static ConnectivityManagerImpl sInstance;
+
+public:
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+    bool IsWiFiManagementStarted() { return true; }
+    void StartWiFiManagement() {}
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+
 };
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFI
