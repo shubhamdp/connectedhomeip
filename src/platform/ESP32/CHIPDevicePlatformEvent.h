@@ -87,6 +87,12 @@ struct ChipDevicePlatformEvent final
                 wifi_event_ap_staconnected_t WiFiApStaConnected;
                 wifi_event_ap_stadisconnected_t WiFiApStaDisconnected;
                 wifi_event_ap_probe_req_rx_t WiFiApProbeReqRecved;
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+                struct {
+                    wifi_event_nan_receive_t nanReceive;
+                    uint8_t * ssi;
+                } WiFiNanReceive;
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
             } Data;
         } ESPSystemEvent;
 #ifdef CONFIG_ENABLE_ESP32_BLE_CONTROLLER

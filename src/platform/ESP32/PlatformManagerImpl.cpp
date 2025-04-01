@@ -163,6 +163,8 @@ void PlatformManagerImpl::HandleESPSystemEvent(void * arg, esp_event_base_t even
             memcpy(&event.Platform.ESPSystemEvent.Data.WiFiStaWpsErFailed, eventData,
                    sizeof(event.Platform.ESPSystemEvent.Data.WiFiStaWpsErFailed));
             break;
+
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFI_AP
         case WIFI_EVENT_AP_STACONNECTED:
             memcpy(&event.Platform.ESPSystemEvent.Data.WiFiApStaConnected, eventData,
                    sizeof(event.Platform.ESPSystemEvent.Data.WiFiApStaConnected));
@@ -175,6 +177,25 @@ void PlatformManagerImpl::HandleESPSystemEvent(void * arg, esp_event_base_t even
             memcpy(&event.Platform.ESPSystemEvent.Data.WiFiApProbeReqRecved, eventData,
                    sizeof(event.Platform.ESPSystemEvent.Data.WiFiApProbeReqRecved));
             break;
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFI_AP
+
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+        case WIFI_EVENT_NAN_RECEIVE: {
+            wifi_event_nan_receive_t * event_data = static_cast<wifi_event_nan_receive_t *>(eventData);
+            event.Platform.ESPSystemEvent.Data.WiFiNanReceive.nanReceive = *event_data;
+
+            uint8_t * ssi = static_cast<uint8_t *>(Platform::MemoryAlloc(event_data->ssi_len));
+            if (ssi == nullptr)
+            {
+                ChipLogError(DeviceLayer, "Failed to allocate memory for SSI");
+                return;
+            }
+            memcpy(ssi, event_data->ssi, event_data->ssi_len);
+
+            event.Platform.ESPSystemEvent.Data.WiFiNanReceive.ssi = ssi;
+            break;
+        }
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
         default:
             break;
         }
