@@ -55,7 +55,7 @@ CHIP_ERROR WiFiPAFBase::SendMessage(const Transport::PeerAddress & address, Pack
         /*
             The session does not exist
         */
-        ChipLogError(Inet, "WiFi-PAF: No valid session whose nodeId: %lu", address.GetRemoteId());
+        ChipLogError(Inet, "WiFi-PAF: No valid session whose nodeId: 0x" ChipLogFormatX64, ChipLogValueX64(address.GetRemoteId()));
         return CHIP_ERROR_INCORRECT_STATE;
     }
     mWiFiPAFLayer->SendMessage(*pTxInfo, std::move(msgBuf));
@@ -80,7 +80,7 @@ CHIP_ERROR WiFiPAFBase::WiFiPAFMessageReceived(WiFiPAFSession & RxInfo, PacketBu
         /*
             The session does not exist
         */
-        ChipLogError(Inet, "WiFi-PAF: No valid session whose Id: %u", RxInfo.id);
+        ChipLogError(Inet, "WiFi-PAF: No valid session whose Id: %" PRIu32, RxInfo.id);
         return CHIP_ERROR_INCORRECT_STATE;
     }
 
@@ -91,10 +91,10 @@ CHIP_ERROR WiFiPAFBase::WiFiPAFMessageReceived(WiFiPAFSession & RxInfo, PacketBu
             The packet is from the wrong sender
         */
         ChipLogError(Inet, "WiFi-PAF: packet from unexpected node:");
-        ChipLogError(Inet, "session: [id: %u, peer_id: %u, [%02x:%02x:%02x:%02x:%02x:%02x]", pPafInfo->id, pPafInfo->peer_id,
+        ChipLogError(Inet, "session: [id: %" PRIu32 ", peer_id: %" PRIu32 ", [%02x:%02x:%02x:%02x:%02x:%02x]", pPafInfo->id, pPafInfo->peer_id,
                      pPafInfo->peer_addr[0], pPafInfo->peer_addr[1], pPafInfo->peer_addr[2], pPafInfo->peer_addr[3],
                      pPafInfo->peer_addr[4], pPafInfo->peer_addr[5]);
-        ChipLogError(Inet, "pkt: [id: %u, peer_id: %u, [%02x:%02x:%02x:%02x:%02x:%02x]", RxInfo.id, RxInfo.peer_id,
+        ChipLogError(Inet, "pkt: [id: %" PRIu32 ", peer_id: %" PRIu32 ", [%02x:%02x:%02x:%02x:%02x:%02x]", RxInfo.id, RxInfo.peer_id,
                      RxInfo.peer_addr[0], RxInfo.peer_addr[1], RxInfo.peer_addr[2], RxInfo.peer_addr[3], RxInfo.peer_addr[4],
                      RxInfo.peer_addr[5]);
         return CHIP_ERROR_INCORRECT_STATE;
