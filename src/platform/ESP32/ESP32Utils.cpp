@@ -69,6 +69,7 @@ CHIP_ERROR ESP32Utils::IsStationConnected(bool & connected)
 
 CHIP_ERROR ESP32Utils::StartWiFiLayer(void)
 {
+    printf("Starting WiFi layer\n\n");
     int8_t ignored;
     bool wifiStarted;
 
@@ -87,6 +88,8 @@ CHIP_ERROR ESP32Utils::StartWiFiLayer(void)
     default:
         return ESP32Utils::MapError(err);
     }
+
+    printf("WiFi layer started: %d\n\n", wifiStarted);
 
     if (!wifiStarted)
     {

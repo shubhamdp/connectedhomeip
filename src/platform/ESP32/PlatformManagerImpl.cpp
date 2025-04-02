@@ -173,6 +173,7 @@ void PlatformManagerImpl::HandleESPSystemEvent(void * arg, esp_event_base_t even
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
         case WIFI_EVENT_NAN_RECEIVE: {
+            printf("esp32/platformmanagerimpl -- got an event WIFI_EVENT_NAN_RECEIVE\n");
             wifi_event_nan_receive_t * event_data = static_cast<wifi_event_nan_receive_t *>(eventData);
             event.Platform.ESPSystemEvent.Data.WiFiNanReceive.nanReceive = *event_data;
 
@@ -187,7 +188,14 @@ void PlatformManagerImpl::HandleESPSystemEvent(void * arg, esp_event_base_t even
             event.Platform.ESPSystemEvent.Data.WiFiNanReceive.ssi = ssi;
             break;
         }
+
+        case WIFI_EVENT_NAN_REPLIED:
+        break;
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+
+        case 19:
+            return;
+
         default:
             break;
         }

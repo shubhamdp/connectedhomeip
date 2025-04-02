@@ -39,6 +39,8 @@
 #include <platform/ESP32/ESP32Utils.h>
 #include <setup_payload/OnboardingCodesUtil.h>
 
+#include "esp_wifi.h"
+
 #if CONFIG_ENABLE_ESP_INSIGHTS_SYSTEM_STATS
 #include <tracing/esp32_trace/insights_sys_stats.h>
 #define START_TIMEOUT_MS 60000
@@ -153,6 +155,10 @@ static void InitServer(intptr_t context)
     chip::System::Stats::InsightsSystemMetrics::GetInstance().RegisterAndEnable(chip::System::Clock::Timeout(START_TIMEOUT_MS));
 #endif
 #endif
+
+    ConnectivityManager::WiFiPAFAdvertiseParam args;
+    args.enable  = true;
+    ConnectivityMgr().WiFiPAFPublish(args);
 }
 
 extern "C" void app_main()
@@ -217,5 +223,13 @@ extern "C" void app_main()
     if (error != CHIP_NO_ERROR)
     {
         ESP_LOGE(TAG, "GetAppTask().StartAppTask() failed : %s", ErrorStr(error));
+    }
+
+    while (true) {
+        vTaskDelay(pdMS_TO_TICKS(5000));
+
+        wifi_mode_t mode;
+        esp_wifi_get_mode(&mode);
+        printf("\n\nWiFi mode: %d\n\n", mode);
     }
 }
