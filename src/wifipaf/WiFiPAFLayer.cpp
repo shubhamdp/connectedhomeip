@@ -28,7 +28,7 @@
 #include "WiFiPAFError.h"
 #include <lib/core/CHIPEncoding.h>
 
-#undef CHIP_WIFIPAF_LAYER_DEBUG_LOGGING_ENABLED
+#define CHIP_WIFIPAF_LAYER_DEBUG_LOGGING_ENABLED
 // Magic values expected in first 2 bytes of valid PAF transport capabilities request or response:
 // ref: 4.21.3, PAFTP Control Frames
 #define CAPABILITIES_MSG_CHECK_BYTE_1 0b01100101
@@ -267,7 +267,7 @@ void WiFiPAFLayer::Shutdown(OnCancelDeviceHandle OnCancelDevice)
 bool WiFiPAFLayer::OnWiFiPAFMessageReceived(WiFiPAFSession & RxInfo, System::PacketBufferHandle && msg)
 {
     WiFiPAFEndPoint * endPoint = sWiFiPAFEndPointPool.Find(reinterpret_cast<WIFIPAF_CONNECTION_OBJECT>(&RxInfo));
-    VerifyOrReturnError(endPoint != nullptr, false, ChipLogDetail(WiFiPAF, "No endpoint for received indication"));
+    VerifyOrReturnError(endPoint != nullptr, false, ChipLogError(WiFiPAF, "No endpoint for received indication"));
     RxInfo.role    = endPoint->mSessionInfo.role;
     CHIP_ERROR err = endPoint->Receive(std::move(msg));
     VerifyOrReturnError(err == CHIP_NO_ERROR, false,

@@ -460,10 +460,10 @@ CHIP_ERROR ConnectivityManagerImpl::InitWiFi()
     // ReturnErrorOnFailure(Internal::ESP32Utils::SetAPMode(false));
 
     // Queue work items to bootstrap the AP and station state machines once the Chip event loop is running.
-    // ReturnErrorOnFailure(DeviceLayer::SystemLayer().ScheduleWork(DriveStationState, NULL));
+    ReturnErrorOnFailure(DeviceLayer::SystemLayer().ScheduleWork(DriveStationState, NULL));
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFI_AP
-    // ReturnErrorOnFailure(DeviceLayer::SystemLayer().ScheduleWork(DriveAPState, NULL));
+    ReturnErrorOnFailure(DeviceLayer::SystemLayer().ScheduleWork(DriveAPState, NULL));
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFI_AP
 
     return CHIP_NO_ERROR;
@@ -471,6 +471,7 @@ CHIP_ERROR ConnectivityManagerImpl::InitWiFi()
 
 void ConnectivityManagerImpl::OnNanReceive(const wifi_event_nan_receive_t & event, uint8_t * ssi)
 {
+    printf("OnNanReceive\n");
     // populate rx info
     WiFiPAF::WiFiPAFSession RxInfo;
     RxInfo.id = static_cast<uint32_t>(event.inst_id);
@@ -479,19 +480,27 @@ void ConnectivityManagerImpl::OnNanReceive(const wifi_event_nan_receive_t & even
 
     // construct packet buffer
     System::PacketBufferHandle pbuf = System::PacketBufferHandle::NewWithData(ssi, static_cast<uint16_t>(event.ssi_len));
-    WiFiPAF::WiFiPAFLayer::GetWiFiPAFLayer().OnWiFiPAFMessageReceived(RxInfo, std::move(pbuf));
+    bool status = WiFiPAF::WiFiPAFLayer::GetWiFiPAFLayer().OnWiFiPAFMessageReceived(RxInfo, std::move(pbuf));
+    if (status) {
+        printf("OnWiFiPAFMessageReceived returned true\n");
+    } else {
+        printf("OnWiFiPAFMessageReceived returned false\n");
+    }
 
     // free ssi
-    Platform::MemoryFree(ssi);
+    // Platform::MemoryFree(ssi);
 }
 
 void ConnectivityManagerImpl::OnWiFiPlatformEvent(const ChipDeviceEvent * event)
 {
+    printf("connectivitymanagerimpl_wifi -- OnWiFiPlatformEvent\n");
     // Handle ESP system events...
     if (event->Type == DeviceEventType::kESPSystemEvent)
     {
+        printf("connectivitymanagerimpl_wifi -- kESPSystemEvent\n");
         if (event->Platform.ESPSystemEvent.Base == WIFI_EVENT)
         {
+            printf("connectivitymanagerimpl_wifi -- WIFI_EVENT\n");
             switch (event->Platform.ESPSystemEvent.Id)
             {
             case WIFI_EVENT_SCAN_DONE:
@@ -500,7 +509,7 @@ void ConnectivityManagerImpl::OnWiFiPlatformEvent(const ChipDeviceEvent * event)
                 break;
             case WIFI_EVENT_STA_START:
                 ChipLogProgress(DeviceLayer, "WIFI_EVENT_STA_START");
-                DriveStationState();
+                // DriveStationState();
                 break;
             case WIFI_EVENT_STA_CONNECTED:
                 ChipLogProgress(DeviceLayer, "WIFI_EVENT_STA_CONNECTED");
@@ -541,11 +550,12 @@ void ConnectivityManagerImpl::OnWiFiPlatformEvent(const ChipDeviceEvent * event)
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFI_AP
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
-            case WIFI_EVENT_NAN_RECEIVE:
-                ChipLogProgress(DeviceLayer, "WIFI_EVENT_NAN_RECEIVE");
+            case WIFI_EVENT_NAN_RECEIVE: {
+                ChipLogProgress(DeviceLayer, "connectivitymanagerimpl_wifi -- got an event WIFI_EVENT_NAN_RECEIVE");
                 OnNanReceive(event->Platform.ESPSystemEvent.Data.WiFiNanReceive.nanReceive,
                              event->Platform.ESPSystemEvent.Data.WiFiNanReceive.ssi);
                 break;
+            }
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
 
             default:
@@ -614,8 +624,10 @@ void ConnectivityManagerImpl::DriveStationState()
         // Ensure that the ESP WiFi layer is started.
         ReturnOnFailure(Internal::ESP32Utils::StartWiFiLayer());
 
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
         // Ensure that station mode is enabled in the ESP WiFi layer.
         ReturnOnFailure(Internal::ESP32Utils::EnableStationMode());
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
     }
 
     // Determine if the ESP WiFi layer thinks the station interface is currently connected.
@@ -1225,23 +1237,38 @@ CHIP_ERROR ConstructSSI(PAFPublishSSI & ssi)
 
 CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args)
 {
+    printf("Inside _WiFiPAFPublish\n");
     // Service name
     const char * kServiceName = "_matterc._udp";
 
     // TODO: args.freq_list and args.freq_list_len should be used to set channel list
 
+    uint8_t chan_list[] = {1,6,11};
+
+    static uint8_t static_ssi[] = { 0x00, 0x00, 0x0F, 0x00,
+                                  0x01, 0x80, 0xF1, 0xFF };
 
     // pre construct the SSI
-    PAFPublishSSI ssi;
+    static PAFPublishSSI ssi;
     ReturnErrorOnFailure(ConstructSSI(ssi));
+    printf("constructed SSI:\n  ");
+    for (uint8_t i = 0; i < sizeof(ssi); i++) {
+        printf("%02X ", static_ssi[i]);
+    }
+    printf("\n");
 
     wifi_nan_publish_cfg_t nanPublishConfig = {0};
 
     strlcpy(nanPublishConfig.service_name, kServiceName, sizeof(nanPublishConfig.service_name));
     nanPublishConfig.type = static_cast<wifi_nan_service_type_t>(NAN_PUBLISH_UNSOLICITED | NAN_PUBLISH_SOLICITED);
     nanPublishConfig.srv_proto_type = PROTOCOL_CSA_MATTER;
-    memcpy(nanPublishConfig.ssi, &ssi, sizeof(nanPublishConfig.ssi));
-    nanPublishConfig.ssi_len = sizeof(ssi);
+    // nanPublishConfig.ssi = reinterpret_cast<uint8_t *>(&ssi);
+    // nanPublishConfig.ssi_len = sizeof(ssi);
+    nanPublishConfig.ssi = static_ssi;
+    nanPublishConfig.ssi_len = sizeof(static_ssi);
+    nanPublishConfig.ttl = 30;
+    nanPublishConfig.usd_chan_list = chan_list;
+    nanPublishConfig.usd_chan_list_len = sizeof(chan_list);
 
     uint32_t publish_id = esp_wifi_nan_publish_service(&nanPublishConfig, 0);
     if (publish_id == 0) {
@@ -1257,6 +1284,7 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args
 
 CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFCancelPublish(uint32_t publishId)
 {
+    printf("Inside _WiFiPAFCancelPublish\n");
     esp_err_t err = esp_wifi_nan_cancel_publish(static_cast<uint8_t>(publishId));
     if (err != ESP_OK) {
         ChipLogError(DeviceLayer, "Failed to cancel publish with ID %" PRIu32, publishId);
@@ -1267,6 +1295,7 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFCancelPublish(uint32_t publishId)
 
 CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFSend(const WiFiPAF::WiFiPAFSession & txInfo, chip::System::PacketBufferHandle && msgBuf)
 {
+    printf("Inside _WiFiPAFSend\n");
     // TODO: change this to Detail later
     ChipLogProgress(DeviceLayer, "WiFi-PAF: sending PAF Follow-up packets, (%u)", msgBuf->DataLength());
     VerifyOrReturnError(msgBuf.IsNull() == false, CHIP_ERROR_INVALID_ARGUMENT);
@@ -1314,6 +1343,7 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFSend(const WiFiPAF::WiFiPAFSession &
 
 CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFShutdown(uint32_t id, [[maybe_unused]] WiFiPAF::WiFiPafRole role)
 {
+    printf("Inside _WiFiPAFShutdown\n");
     return _WiFiPAFCancelPublish(id);
 }
 
