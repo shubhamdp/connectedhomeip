@@ -105,6 +105,7 @@ CHIP_ERROR ConnectivityManagerImpl::_Init()
 
 void ConnectivityManagerImpl::_OnPlatformEvent(const ChipDeviceEvent * event)
 {
+    printf("connectivitymanagerimpl -- _OnPlatformEvent\n");
 #if CHIP_DEVICE_CONFIG_ENABLE_THREAD
     GenericConnectivityManagerImpl_Thread<ConnectivityManagerImpl>::_OnPlatformEvent(event);
 #endif

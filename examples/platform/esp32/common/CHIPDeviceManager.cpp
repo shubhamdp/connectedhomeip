@@ -68,9 +68,6 @@ CHIP_ERROR CHIPDeviceManager::Init(CHIPDeviceManagerCallbacks * cb)
     {
         ConnectivityMgr().SetBLEAdvertisingEnabled(true);
         // lets enable paf even when only ble is enabled
-        ConnectivityManager::WiFiPAFAdvertiseParam args;
-        args.enable  = true;
-        ConnectivityMgr().WiFiPAFPublish(args);
     }
     else if (flags.Has(RendezvousInformationFlag::kSoftAP))
     {
