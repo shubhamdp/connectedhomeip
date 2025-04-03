@@ -79,16 +79,16 @@ public:
 #ifdef CHIP_WIFIPAF_LAYER_DEBUG_LOGGING_ENABLED
             {
                 const WiFiPAFSession * pElmInfo = &elem->mSessionInfo;
-                ChipLogError(WiFiPAF, "EndPoint[%lu]", i);
+                ChipLogError(WiFiPAF, "EndPoint[%u]", i);
                 ChipLogError(WiFiPAF, "Role: [%d, %d]", pElmInfo->role, pInInfo->role);
-                ChipLogError(WiFiPAF, "id: [%u, %u]", pElmInfo->id, pInInfo->id);
-                ChipLogError(WiFiPAF, "peer_id: [%d, %d]", pElmInfo->peer_id, pInInfo->peer_id);
+                ChipLogError(WiFiPAF, "id: [%" PRIu32 ", %" PRIu32 "]", pElmInfo->id, pInInfo->id);
+                ChipLogError(WiFiPAF, "peer_id: [%" PRIu32 ", %" PRIu32 "]", pElmInfo->peer_id, pInInfo->peer_id);
                 ChipLogError(WiFiPAF, "ElmMac: [%02x:%02x:%02x:%02x:%02x:%02x]", pElmInfo->peer_addr[0], pElmInfo->peer_addr[1],
                              pElmInfo->peer_addr[2], pElmInfo->peer_addr[3], pElmInfo->peer_addr[4], pElmInfo->peer_addr[5]);
                 ChipLogError(WiFiPAF, "InMac: [%02x:%02x:%02x:%02x:%02x:%02x]", pInInfo->peer_addr[0], pInInfo->peer_addr[1],
                              pInInfo->peer_addr[2], pInInfo->peer_addr[3], pInInfo->peer_addr[4], pInInfo->peer_addr[5]);
-                ChipLogError(WiFiPAF, "nodeId: [0x" ChipLogFormatX64 ", 0x" ChipLogFormatX64 "]", pElmInfo->nodeId, pInInfo->nodeId);
-                ChipLogError(WiFiPAF, "discriminator: [%d, %d]", pElmInfo->discriminator, pInInfo->discriminator);
+                ChipLogError(WiFiPAF, "nodeId: [0x" ChipLogFormatX64 ", 0x" ChipLogFormatX64 "]", ChipLogValueX64(pElmInfo->nodeId), ChipLogValueX64(pInInfo->nodeId));
+                ChipLogError(WiFiPAF, "discriminator: [%u, %u]", pElmInfo->discriminator, pInInfo->discriminator);
             }
 #endif
         }
