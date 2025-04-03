@@ -30,10 +30,10 @@
 #include <platform/ESP32/ESP32Utils.h>
 
 #include "esp_event.h"
+#include "esp_nan.h"
 #include "esp_netif.h"
 #include "esp_netif_net_stack.h"
 #include "esp_wifi.h"
-#include "esp_nan.h"
 #include "nvs.h"
 
 using namespace ::chip::DeviceLayer::Internal;
@@ -125,7 +125,7 @@ CHIP_ERROR ESP32Utils::StartWiFiLayer(void)
             ChipLogError(DeviceLayer, "esp_wifi_nan_start() failed: %s", esp_err_to_name(err));
             return ESP32Utils::MapError(err);
         }
-#else // !CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+#else  // !CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
         err = esp_wifi_start();
         if (err != ESP_OK)
         {
@@ -133,7 +133,6 @@ CHIP_ERROR ESP32Utils::StartWiFiLayer(void)
             return ESP32Utils::MapError(err);
         }
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
-
     }
 
     return CHIP_NO_ERROR;

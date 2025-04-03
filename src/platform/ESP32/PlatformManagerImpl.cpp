@@ -136,6 +136,11 @@ void PlatformManagerImpl::HandleESPSystemEvent(void * arg, esp_event_base_t even
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFI
     else if (eventBase == WIFI_EVENT)
     {
+        if (eventId == 19)
+        {
+            return;
+        }
+
         ChipLogProgress(DeviceLayer, "Posting ESPSystemEvent: Wifi Event with eventId : %ld", eventId);
         switch (eventId)
         {
@@ -183,7 +188,8 @@ void PlatformManagerImpl::HandleESPSystemEvent(void * arg, esp_event_base_t even
         case WIFI_EVENT_NAN_RECEIVE: {
             printf("esp32/platformmanagerimpl -- got an event WIFI_EVENT_NAN_RECEIVE\n");
             wifi_event_nan_receive_t * event_data = static_cast<wifi_event_nan_receive_t *>(eventData);
-            event.Platform.ESPSystemEvent.Data.WiFiNanReceive.nanReceive = *event_data;
+            memcpy(&event.Platform.ESPSystemEvent.Data.WiFiNanReceive.nanReceive, event_data,
+                   sizeof(event.Platform.ESPSystemEvent.Data.WiFiNanReceive.nanReceive));
 
             uint8_t * ssi = static_cast<uint8_t *>(Platform::MemoryAlloc(event_data->ssi_len));
             if (ssi == nullptr)
@@ -193,16 +199,40 @@ void PlatformManagerImpl::HandleESPSystemEvent(void * arg, esp_event_base_t even
             }
             memcpy(ssi, event_data->ssi, event_data->ssi_len);
 
+            printf("esp32/platformmanagerimpl -- ssi_len: %u, ssi: ", event_data->ssi_len);
+            for (uint8_t i = 0; i < event_data->ssi_len; i++)
+            {
+                printf("%02X ", ssi[i]);
+            }
+            printf("\n");
+
+            /*
+                        printf("esp32/platformmanagerimpl -- peer_svc_info_len: %u, peer_svc_info: \n  ", event_data->ssi_len);
+                        for (uint8_t i = 0; i < event_data->ssi_len; i++) {
+                            printf("%02X ", event_data->peer_svc_info[i]);
+                        }
+                        printf("\n");
+
+                        uint8_t * ssi = static_cast<uint8_t *>(Platform::MemoryAlloc(event_data->ssi_len));
+                        if (ssi == nullptr)
+                        {
+                            ChipLogError(DeviceLayer, "Failed to allocate memory for SSI");
+                            return;
+                        }
+                        memcpy(ssi, event_data->peer_svc_info, event_data->ssi_len);
+            */
+
             event.Platform.ESPSystemEvent.Data.WiFiNanReceive.ssi = ssi;
             break;
         }
 
-        case WIFI_EVENT_NAN_REPLIED:
-        break;
+        case WIFI_EVENT_NAN_REPLIED: {
+            printf("esp32/platformmanagerimpl -- got an event WIFI_EVENT_NAN_REPLIED\n");
+            memcpy(&event.Platform.ESPSystemEvent.Data.WiFiNanReplied, eventData,
+                   sizeof(event.Platform.ESPSystemEvent.Data.WiFiNanReplied));
+            break;
+        }
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
-
-        case 19:
-            return;
 
         default:
             break;
