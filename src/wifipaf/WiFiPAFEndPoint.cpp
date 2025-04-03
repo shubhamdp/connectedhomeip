@@ -42,8 +42,8 @@
 #include "WiFiPAFTP.h"
 
 // Define below to enable extremely verbose, WiFiPAF end point-specific debug logging.
-#undef CHIP_WIFIPAF_END_POINT_DEBUG_LOGGING_ENABLED
-#define CHIP_WIFIPAF_END_POINT_DEBUG_LOGGING_LEVEL 0
+#define CHIP_WIFIPAF_END_POINT_DEBUG_LOGGING_ENABLED
+#define CHIP_WIFIPAF_END_POINT_DEBUG_LOGGING_LEVEL 1
 
 #ifdef CHIP_WIFIPAF_END_POINT_DEBUG_LOGGING_ENABLED
 #define ChipLogDebugWiFiPAFEndPoint_L0(MOD, MSG, ...) ChipLogDetail(MOD, MSG, ##__VA_ARGS__)
@@ -902,14 +902,17 @@ CHIP_ERROR WiFiPAFEndPoint::Receive(PacketBufferHandle && data)
     if (err != CHIP_NO_ERROR)
     {
         // Failed to get SeqNum. => Pass down to PAFTP engine directly
+        printf("Failed to get SeqNum. => Pass down to PAFTP engine directly\n");
         return RxPacketProcess(std::move(data));
     }
     /*
         If reorder-queue is not empty => Need to queue the packet whose SeqNum is the next one at
         offset 0 to fill the hole.
     */
-    if ((ExpRxNextSeqNum == seqNum) && (ItemsInReorderQueue == 0))
+    if ((ExpRxNextSeqNum == seqNum) && (ItemsInReorderQueue == 0)) {
+        printf("ExpRxNextSeqNum == seqNum && ItemsInReorderQueue == 0\n");
         return RxPacketProcess(std::move(data));
+    }
 
     ChipLogError(WiFiPAF, "Reorder the packet: [%u, %u]", ExpRxNextSeqNum, seqNum);
     // Start reordering packets
@@ -962,6 +965,7 @@ CHIP_ERROR WiFiPAFEndPoint::Receive(PacketBufferHandle && data)
             ReorderQueue[qidx]  = nullptr;
         }
     }
+    printf("err: %" CHIP_ERROR_FORMAT "\n", err.Format());
     return err;
 }
 

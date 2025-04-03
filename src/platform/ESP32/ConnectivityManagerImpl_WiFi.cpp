@@ -38,9 +38,9 @@
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
 
 #include "esp_event.h"
+#include "esp_nan.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
-#include "esp_nan.h"
 
 #include <lwip/dns.h>
 #include <lwip/ip_addr.h>
@@ -469,21 +469,54 @@ CHIP_ERROR ConnectivityManagerImpl::InitWiFi()
     return CHIP_NO_ERROR;
 }
 
+#if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+
+namespace {
+#pragma pack(push, 1)
+struct PAFPublishSSI
+{
+    uint8_t DevOpCode;
+    uint16_t DevInfo;
+    uint16_t ProductId;
+    uint16_t VendorId;
+};
+
+CHIP_ERROR ConstructSSI(PAFPublishSSI & ssi)
+{
+    ssi.DevOpCode = 0x00;
+    ReturnErrorOnFailure(GetCommissionableDataProvider()->GetSetupDiscriminator(ssi.DevInfo));
+    ReturnErrorOnFailure(GetDeviceInstanceInfoProvider()->GetProductId(ssi.ProductId));
+    ReturnErrorOnFailure(GetDeviceInstanceInfoProvider()->GetVendorId(ssi.VendorId));
+    return CHIP_NO_ERROR;
+}
+} // namespace
+
 void ConnectivityManagerImpl::OnNanReceive(const wifi_event_nan_receive_t & event, uint8_t * ssi)
 {
-    printf("OnNanReceive\n");
+    printf("connectivitymanagerimpl_wifi -- OnNanReceive\n");
     // populate rx info
     WiFiPAF::WiFiPAFSession RxInfo;
-    RxInfo.id = static_cast<uint32_t>(event.inst_id);
+    RxInfo.id      = static_cast<uint32_t>(event.inst_id);
     RxInfo.peer_id = static_cast<uint32_t>(event.peer_inst_id);
     memcpy(RxInfo.peer_addr, event.peer_if_mac, sizeof(RxInfo.peer_addr));
+    RxInfo.role = WiFiPAF::WiFiPafRole::kWiFiPafRole_Subscriber;
+
+    printf("connectivitymanagerimpl_wifi -- OnNanReceive, ssi_len: %u, ssi: \n  ", event.ssi_len);
+    for (uint8_t i = 0; i < event.ssi_len; i++)
+    {
+        printf("%02X ", ssi[i]);
+    }
+    printf("\n");
 
     // construct packet buffer
     System::PacketBufferHandle pbuf = System::PacketBufferHandle::NewWithData(ssi, static_cast<uint16_t>(event.ssi_len));
-    bool status = WiFiPAF::WiFiPAFLayer::GetWiFiPAFLayer().OnWiFiPAFMessageReceived(RxInfo, std::move(pbuf));
-    if (status) {
+    bool status                     = WiFiPAF::WiFiPAFLayer::GetWiFiPAFLayer().OnWiFiPAFMessageReceived(RxInfo, std::move(pbuf));
+    if (status)
+    {
         printf("OnWiFiPAFMessageReceived returned true\n");
-    } else {
+    }
+    else
+    {
         printf("OnWiFiPAFMessageReceived returned false\n");
     }
 
@@ -491,16 +524,85 @@ void ConnectivityManagerImpl::OnNanReceive(const wifi_event_nan_receive_t & even
     // Platform::MemoryFree(ssi);
 }
 
+void ConnectivityManagerImpl::OnNanReplied(const wifi_event_nan_replied_t & event)
+{
+    printf("connectivitymanagerimpl_wifi -- OnNanReplied\n");
+    // populate tx info
+    WiFiPAF::WiFiPAFSession TxInfo;
+    TxInfo.id      = static_cast<uint32_t>(event.publish_id);
+    TxInfo.peer_id = static_cast<uint32_t>(event.subscribe_id);
+    memcpy(TxInfo.peer_addr, event.sub_if_mac, sizeof(TxInfo.peer_addr));
+    DeviceLayer::GetCommissionableDataProvider()->GetSetupDiscriminator(TxInfo.discriminator);
+    TxInfo.role = WiFiPAF::WiFiPafRole::kWiFiPafRole_Publisher;
+
+    for (uint8_t i = 0; i < sizeof(event.peer_svc_info); i++)
+    {
+        printf("%02X ", event.peer_svc_info[i]);
+    }
+    printf("\n");
+
+    auto pPublishSSI = reinterpret_cast<const PAFPublishSSI *>(event.peer_svc_info);
+
+    if (pPublishSSI->DevInfo != TxInfo.discriminator)
+    {
+        ChipLogProgress(DeviceLayer, "connectivitymanagerimpl_wifi -- OnNanReplied, mismatched discriminator, got %u, ours: %u",
+                        pPublishSSI->DevInfo, TxInfo.discriminator);
+        return;
+    }
+
+    // TODO: check for protocol type as well
+
+    WiFiPAFSession sessionInfo  = { .id = TxInfo.id };
+    WiFiPAFLayer & WiFiPafLayer = WiFiPAFLayer::GetWiFiPAFLayer();
+    auto pPafInfo               = WiFiPafLayer.GetPAFInfo(PafInfoAccess::kAccSessionId, sessionInfo);
+    if (pPafInfo == nullptr)
+    {
+        ChipLogError(DeviceLayer, "connectivitymanagerimpl_wifi -- OnNanReplied, no valid session with publish_id: %" PRIu32,
+                     TxInfo.id);
+        return;
+    }
+
+    if ((pPafInfo->role == WiFiPAF::WiFiPafRole::kWiFiPafRole_Publisher) && (pPafInfo->peer_id == TxInfo.peer_id) &&
+        !memcmp(pPafInfo->peer_addr, TxInfo.peer_addr, sizeof(uint8_t) * 6))
+    {
+        ChipLogError(DeviceLayer, "connectivitymanagerimpl_wifi -- OnNanReplied, reentrance, publish_id: %" PRIu32, TxInfo.id);
+        return;
+    }
+
+    ChipLogProgress(DeviceLayer, "WiFi-PAF: OnReplied, set PafInfo, whose nodeId: 0x" ChipLogFormatX64,
+                    ChipLogValueX64(pPafInfo->nodeId));
+    ChipLogProgress(DeviceLayer, "\t (publish_id, peer_subscribe_id): (%" PRIu32 ", %" PRIu32 ")", TxInfo.id, TxInfo.peer_id);
+    ChipLogProgress(DeviceLayer, "\t peer_addr: [%02x:%02x:%02x:%02x:%02x:%02x]", TxInfo.peer_addr[0], TxInfo.peer_addr[1],
+                    TxInfo.peer_addr[2], TxInfo.peer_addr[3], TxInfo.peer_addr[4], TxInfo.peer_addr[5]);
+    ChipLogProgress(DeviceLayer, "\t DevInfo: %x", pPublishSSI->DevInfo);
+
+    pPafInfo->role    = WiFiPAF::WiFiPafRole::kWiFiPafRole_Publisher;
+    pPafInfo->id      = TxInfo.id;
+    pPafInfo->peer_id = TxInfo.peer_id;
+    memcpy(pPafInfo->peer_addr, TxInfo.peer_addr, sizeof(uint8_t) * 6);
+
+    CHIP_ERROR err = WiFiPafLayer.HandleTransportConnectionInitiated(*pPafInfo);
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(DeviceLayer, "connectivitymanagerimpl_wifi -- OnNanReplied, HandleTransportConnectionInitiated() failed: %s",
+                     chip::ErrorStr(err));
+    }
+
+    printf("connectivitymanagerimpl_wifi -- OnNanReplied, done\n");
+}
+
+#endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
+
 void ConnectivityManagerImpl::OnWiFiPlatformEvent(const ChipDeviceEvent * event)
 {
-    printf("connectivitymanagerimpl_wifi -- OnWiFiPlatformEvent\n");
+    // printf("connectivitymanagerimpl_wifi -- OnWiFiPlatformEvent\n");
     // Handle ESP system events...
     if (event->Type == DeviceEventType::kESPSystemEvent)
     {
-        printf("connectivitymanagerimpl_wifi -- kESPSystemEvent\n");
+        // printf("connectivitymanagerimpl_wifi -- kESPSystemEvent\n");
         if (event->Platform.ESPSystemEvent.Base == WIFI_EVENT)
         {
-            printf("connectivitymanagerimpl_wifi -- WIFI_EVENT\n");
+            // printf("connectivitymanagerimpl_wifi -- WIFI_EVENT\n");
             switch (event->Platform.ESPSystemEvent.Id)
             {
             case WIFI_EVENT_SCAN_DONE:
@@ -556,6 +658,11 @@ void ConnectivityManagerImpl::OnWiFiPlatformEvent(const ChipDeviceEvent * event)
                              event->Platform.ESPSystemEvent.Data.WiFiNanReceive.ssi);
                 break;
             }
+            case WIFI_EVENT_NAN_REPLIED: {
+                ChipLogProgress(DeviceLayer, "connectivitymanagerimpl_wifi -- got an event WIFI_EVENT_NAN_REPLIED");
+                OnNanReplied(event->Platform.ESPSystemEvent.Data.WiFiNanReplied);
+                break;
+            }
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
 
             default:
@@ -588,8 +695,9 @@ void ConnectivityManagerImpl::OnWiFiPlatformEvent(const ChipDeviceEvent * event)
             }
         }
     }
-    if (event->Type == DeviceEventType::kCHIPoWiFiPAFWriteDone) {
-        ChipLogProgress(DeviceLayer, "WiFi-PAF: event: kCHIPoWiFiPAFWriteDone");
+    if (event->Type == DeviceEventType::kCHIPoWiFiPAFWriteDone)
+    {
+        ChipLogProgress(DeviceLayer, "WiFi-PAF: event: kCHIPoWiFiPAFWriteDone, result: %d", event->CHIPoWiFiPAFReceived.result);
         WiFiPAF::WiFiPAFSession TxInfo;
         memcpy(&TxInfo, &event->CHIPoWiFiPAFReceived.SessionInfo, sizeof(WiFiPAF::WiFiPAFSession));
         WiFiPAF::WiFiPAFLayer::GetWiFiPAFLayer().HandleWriteConfirmed(TxInfo, event->CHIPoWiFiPAFReceived.result);
@@ -1214,27 +1322,6 @@ CHIP_ERROR ConnectivityManagerImpl::_SetPollingInterval(System::Clock::Milliseco
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
 
-namespace {
-#pragma pack(push, 1)
-struct PAFPublishSSI
-{
-    uint8_t DevOpCode;
-    uint16_t DevInfo;
-    uint16_t ProductId;
-    uint16_t VendorId;
-};
-
-CHIP_ERROR ConstructSSI(PAFPublishSSI & ssi)
-{
-    ssi.DevOpCode = 0x00;
-    ReturnErrorOnFailure(GetCommissionableDataProvider()->GetSetupDiscriminator(ssi.DevInfo));
-    ReturnErrorOnFailure(GetDeviceInstanceInfoProvider()->GetProductId(ssi.ProductId));
-    ReturnErrorOnFailure(GetDeviceInstanceInfoProvider()->GetVendorId(ssi.VendorId));
-    return CHIP_NO_ERROR;
-} 
-} // namespace
-
-
 CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args)
 {
     printf("Inside _WiFiPAFPublish\n");
@@ -1243,35 +1330,36 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args
 
     // TODO: args.freq_list and args.freq_list_len should be used to set channel list
 
-    uint8_t chan_list[] = {1,6,11};
+    uint8_t chan_list[] = { 6 };
 
-    static uint8_t static_ssi[] = { 0x00, 0x00, 0x0F, 0x00,
-                                  0x01, 0x80, 0xF1, 0xFF };
+    static uint8_t static_ssi[] = { 0x00, 0x00, 0x0F, 0x00, 0x01, 0x80, 0xF1, 0xFF };
 
     // pre construct the SSI
     static PAFPublishSSI ssi;
     ReturnErrorOnFailure(ConstructSSI(ssi));
     printf("constructed SSI:\n  ");
-    for (uint8_t i = 0; i < sizeof(ssi); i++) {
+    for (uint8_t i = 0; i < sizeof(ssi); i++)
+    {
         printf("%02X ", static_ssi[i]);
     }
     printf("\n");
 
-    wifi_nan_publish_cfg_t nanPublishConfig = {0};
+    wifi_nan_publish_cfg_t nanPublishConfig = { 0 };
 
     strlcpy(nanPublishConfig.service_name, kServiceName, sizeof(nanPublishConfig.service_name));
-    nanPublishConfig.type = static_cast<wifi_nan_service_type_t>(NAN_PUBLISH_UNSOLICITED | NAN_PUBLISH_SOLICITED);
+    nanPublishConfig.type           = static_cast<wifi_nan_service_type_t>(NAN_PUBLISH_UNSOLICITED | NAN_PUBLISH_SOLICITED);
     nanPublishConfig.srv_proto_type = PROTOCOL_CSA_MATTER;
     // nanPublishConfig.ssi = reinterpret_cast<uint8_t *>(&ssi);
     // nanPublishConfig.ssi_len = sizeof(ssi);
-    nanPublishConfig.ssi = static_ssi;
-    nanPublishConfig.ssi_len = sizeof(static_ssi);
-    nanPublishConfig.ttl = 30;
-    nanPublishConfig.usd_chan_list = chan_list;
+    nanPublishConfig.ssi               = static_ssi;
+    nanPublishConfig.ssi_len           = sizeof(static_ssi);
+    nanPublishConfig.ttl               = CHIP_DEVICE_CONFIG_WIFIPAF_DISCOVERY_TIMEOUT_SECS;
+    nanPublishConfig.usd_chan_list     = chan_list;
     nanPublishConfig.usd_chan_list_len = sizeof(chan_list);
 
     uint32_t publish_id = esp_wifi_nan_publish_service(&nanPublishConfig, 0);
-    if (publish_id == 0) {
+    if (publish_id == 0)
+    {
         ChipLogError(DeviceLayer, "Publishing to %s failed", nanPublishConfig.service_name);
         return CHIP_ERROR_INTERNAL;
     }
@@ -1279,14 +1367,22 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args
     ChipLogProgress(DeviceLayer, "Publishing to %s with ID %" PRIu32, nanPublishConfig.service_name, publish_id);
     args.publish_id = publish_id;
 
-    return CHIP_NO_ERROR;
+    WiFiPAFSession sessionInfo  = { .role = WiFiPafRole::kWiFiPafRole_Publisher, .id = publish_id };
+    WiFiPAFLayer & WiFiPafLayer = WiFiPAFLayer::GetWiFiPAFLayer();
+    CHIP_ERROR err              = WiFiPafLayer.AddPafSession(PafInfoAccess::kAccSessionId, sessionInfo);
+    if (err != CHIP_NO_ERROR)
+    {
+        ChipLogError(DeviceLayer, "Failed to add PAF session, err: %s", chip::ErrorStr(err));
+    }
+    return err;
 }
 
 CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFCancelPublish(uint32_t publishId)
 {
     printf("Inside _WiFiPAFCancelPublish\n");
     esp_err_t err = esp_wifi_nan_cancel_publish(static_cast<uint8_t>(publishId));
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         ChipLogError(DeviceLayer, "Failed to cancel publish with ID %" PRIu32, publishId);
         return CHIP_ERROR_INTERNAL;
     }
@@ -1314,18 +1410,19 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFSend(const WiFiPAF::WiFiPAFSession &
     }
 
     //  Send the packets
-    wifi_nan_followup_params_t followupParams = {0};
+    wifi_nan_followup_params_t followupParams = { 0 };
 
     // We are downsizing but necessary to avoid warnings, we are sure that txInfo.id and txInfo.peer_id are in range of uint8_t
-    followupParams.inst_id = static_cast<uint8_t>(txInfo.id);
+    followupParams.inst_id      = static_cast<uint8_t>(txInfo.id);
     followupParams.peer_inst_id = static_cast<uint8_t>(txInfo.peer_id);
-    followupParams.protocol = PROTOCOL_CSA_MATTER;
-    followupParams.ssi = msgBuf->Start();
-    followupParams.ssi_len = static_cast<uint16_t>(msgBuf->DataLength());
+    followupParams.protocol     = PROTOCOL_CSA_MATTER;
+    followupParams.ssi          = msgBuf->Start();
+    followupParams.ssi_len      = static_cast<uint16_t>(msgBuf->DataLength());
     memcpy(followupParams.peer_mac, mPeerMac, sizeof(followupParams.peer_mac)); // we get peer mac in event handler
 
     esp_err_t err = esp_wifi_nan_send_message(&followupParams);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         ChipLogError(DeviceLayer, "Failed to send followup with ID %u, err: %d", followupParams.inst_id, err);
     }
     else
