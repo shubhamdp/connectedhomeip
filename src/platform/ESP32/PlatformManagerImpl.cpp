@@ -206,22 +206,6 @@ void PlatformManagerImpl::HandleESPSystemEvent(void * arg, esp_event_base_t even
             }
             printf("\n");
 
-            /*
-                        printf("esp32/platformmanagerimpl -- peer_svc_info_len: %u, peer_svc_info: \n  ", event_data->ssi_len);
-                        for (uint8_t i = 0; i < event_data->ssi_len; i++) {
-                            printf("%02X ", event_data->peer_svc_info[i]);
-                        }
-                        printf("\n");
-
-                        uint8_t * ssi = static_cast<uint8_t *>(Platform::MemoryAlloc(event_data->ssi_len));
-                        if (ssi == nullptr)
-                        {
-                            ChipLogError(DeviceLayer, "Failed to allocate memory for SSI");
-                            return;
-                        }
-                        memcpy(ssi, event_data->peer_svc_info, event_data->ssi_len);
-            */
-
             event.Platform.ESPSystemEvent.Data.WiFiNanReceive.ssi = ssi;
             break;
         }
