@@ -116,8 +116,8 @@ CHIP_ERROR ESP32Utils::StartWiFiLayer(void)
         ChipLogProgress(DeviceLayer, "Starting ESP WiFi layer");
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
-        wifi_nan_config_t nanConfig;
-        nanConfig.usd_enabled = true;
+        /* Start USD-NAN Discovery */
+        wifi_nan_config_t nanConfig = WIFI_USD_NAN_CONFIG_DEFAULT();
         // esp_wifi_nan_start() also calls esp_wifi_start() so we don't need to call this function again
         err = esp_wifi_nan_start(&nanConfig);
         if (err != ESP_OK)
