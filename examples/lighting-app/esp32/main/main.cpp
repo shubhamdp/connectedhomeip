@@ -224,12 +224,4 @@ extern "C" void app_main()
     {
         ESP_LOGE(TAG, "GetAppTask().StartAppTask() failed : %s", ErrorStr(error));
     }
-
-    while (true) {
-        vTaskDelay(pdMS_TO_TICKS(5000));
-
-        wifi_mode_t mode;
-        esp_wifi_get_mode(&mode);
-        printf("\n\nWiFi mode: %d\n\n", mode);
-    }
 }
