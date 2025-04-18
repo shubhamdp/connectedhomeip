@@ -120,6 +120,7 @@ private:
         kWaitResTimerRunning     = 0x02, // Wait for resource to be available
         kAckReceivedTimerRunning = 0x04, // Ack received timer running due to unacked sent fragment.
         kSendAckTimerRunning     = 0x08, // Send ack timer running; indicates pending ack to send.
+        kRetransmitTimerRunning  = 0x10, // Retransmit timer running due to unacked sent fragment.
     };
 
     // Queue of outgoing messages to send when current PAFTPEngine transmission completes.
@@ -131,6 +132,15 @@ private:
     // progress.
     PacketBufferHandle mAckToSend;
 
+    // Save the last sent packet for retransmission if needed
+    PacketBufferHandle mLastTxPacket;
+
+    // Retransmission count for current packet
+    uint8_t mRetransmitCount;
+
+    // Maximum number of retransmission attempts before giving up
+    static constexpr uint8_t kMaxRetransmitCount = 5;
+
     WiFiPAFTP mPafTP;
     WiFiPafRole mRole;
     // How many continuing times the resource is unavailable. Will close the session if it's occupied too long
@@ -141,6 +151,12 @@ private:
     SequenceNumber_t mLocalReceiveWindowSize;
     SequenceNumber_t mRemoteReceiveWindowSize;
     SequenceNumber_t mReceiveWindowMaxSize;
+
+    // Maximum number of retransmission attempts before closing the connection
+    static constexpr uint8_t kMaxRetransmissionAttempts = 3;
+    
+    // Counter for retransmission attempts
+    uint8_t mRetransmissionCount = 0;
 
     CHIP_ERROR Init(WiFiPAFLayer * WiFiPafLayer, WiFiPAFSession & SessionInfo);
     void DoClose(uint8_t flags, CHIP_ERROR err);
@@ -176,12 +192,14 @@ private:
     void StopAckReceivedTimer();          // Stop ack-received timer.
     void StopSendAckTimer();              // Stop send-ack timer.
     void StopWaitResourceTimer();         // Stop wait-resource timer
+    void StopRetransmitTimer();           // Stop retransmit timer.
 
     // Timer expired callbacks:
     static void HandleConnectTimeout(chip::System::Layer * systemLayer, void * appState);
     static void HandleAckReceivedTimeout(chip::System::Layer * systemLayer, void * appState);
     static void HandleSendAckTimeout(chip::System::Layer * systemLayer, void * appState);
     static void HandleWaitResourceTimeout(chip::System::Layer * systemLayer, void * appState);
+    static void HandleRetransmitTimeout(chip::System::Layer * systemLayer, void * appState);
 
     // Close functions:
     void DoCloseCallback(uint8_t state, uint8_t flags, CHIP_ERROR err);
@@ -191,6 +209,9 @@ private:
 
     void QueueTx(PacketBufferHandle && data, PacketType_t type);
     void ClearAll();
+
+    // Retransmission functionality
+    CHIP_ERROR RetransmitLastPacket();    // Retransmit the last sent packet
 };
 
 } /* namespace WiFiPAF */

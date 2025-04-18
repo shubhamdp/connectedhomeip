@@ -41,6 +41,9 @@
 #include "WiFiPAFLayer.h"
 #include "WiFiPAFTP.h"
 
+// Define direct constant for ACK timeout override - use for retransmission logic
+#define PAFTP_ACK_TIMEOUT_MS_OVERRIDE (2000) // 2 seconds to allow for retransmission attempt
+
 // Define below to enable extremely verbose, WiFiPAF end point-specific debug logging.
 #define CHIP_WIFIPAF_END_POINT_DEBUG_LOGGING_ENABLED
 #define CHIP_WIFIPAF_END_POINT_DEBUG_LOGGING_LEVEL 1
@@ -83,6 +86,16 @@
  *
  */
 #define WIFIPAF_WINDOW_NO_ACK_SEND_THRESHOLD 1
+
+/**
+ *  @def PAFTP_RETRANSMIT_TIMEOUT_MS
+ *
+ *  @brief
+ *    The amount of time, in milliseconds, to wait before retransmitting a packet
+ *    that hasn't been acknowledged.
+ *
+ */
+#define PAFTP_RETRANSMIT_TIMEOUT_MS (2000) // 2 seconds per retransmission attempt
 
 namespace chip {
 namespace WiFiPAF {
@@ -275,6 +288,9 @@ void WiFiPAFEndPoint::Free()
 
     // Clear pending ack buffer, if any.
     mAckToSend = nullptr;
+    
+    // Clear saved last tx packet
+    mLastTxPacket = nullptr;
 
     // Cancel all timers.
     StopConnectTimer();
@@ -328,6 +344,8 @@ CHIP_ERROR WiFiPAFEndPoint::Init(WiFiPAFLayer * WiFiPafLayer, WiFiPAFSession & S
     mReceiveWindowMaxSize    = 0;
     mSendQueue               = nullptr;
     mAckToSend               = nullptr;
+    mLastTxPacket            = nullptr;  // Initialize last tx packet
+    mRetransmissionCount     = 0;        // Initialize retransmission counter
 
     ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "initialized local rx window, size = %u", mLocalReceiveWindowSize);
 
@@ -499,6 +517,9 @@ CHIP_ERROR WiFiPAFEndPoint::HandleFragmentConfirmationReceived(bool result)
                    mSessionInfo.peer_addr[0], mSessionInfo.peer_addr[1], mSessionInfo.peer_addr[2],
                    mSessionInfo.peer_addr[3], mSessionInfo.peer_addr[4], mSessionInfo.peer_addr[5],
                    mPafTP.GetNewestUnackedSentSequenceNumber());
+
+    // Stop the retransmit timer as we've received an acknowledgment
+    StopRetransmitTimer();
 
     if (result != true)
     {
@@ -921,44 +942,83 @@ CHIP_ERROR WiFiPAFEndPoint::Receive(PacketBufferHandle && data)
     if (err != CHIP_NO_ERROR)
     {
         // Failed to get SeqNum. => Pass down to PAFTP engine directly
-        printf("Failed to get SeqNum. => Pass down to PAFTP engine directly\n");
+        ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Failed to get SeqNum - passing to PAFTP engine directly");
         return RxPacketProcess(std::move(data));
     }
+
+    // Log the sequence numbers to help with debugging
+    ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Got packet with seqNum=%u, expected=%u", seqNum, ExpRxNextSeqNum);
+    
     /*
         If reorder-queue is not empty => Need to queue the packet whose SeqNum is the next one at
         offset 0 to fill the hole.
     */
     if ((ExpRxNextSeqNum == seqNum) && (ItemsInReorderQueue == 0)) {
-        printf("ExpRxNextSeqNum == seqNum && ItemsInReorderQueue == 0\n");
+        ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Expected sequence number received - processing directly");
         return RxPacketProcess(std::move(data));
     }
 
-    ChipLogError(WiFiPAF, "Reorder the packet: [%u, %u]", ExpRxNextSeqNum, seqNum);
     // Start reordering packets
-    SequenceNumber_t offset = OffsetSeqNum(seqNum, ExpRxNextSeqNum);
+    ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Reordering packet [expected=%u, received=%u]", ExpRxNextSeqNum, seqNum);
+    
+    // Calculate offset, handling wrap-around cases
+    uint16_t offset;
+    
+    // If the received sequence number is smaller than expected, it may have wrapped around
+    if (seqNum < ExpRxNextSeqNum)
+    {
+        // Calculate as if wrapped around (e.g., seqNum=0, expected=255 should be offset 1)
+        unsigned int temp1 = static_cast<unsigned int>(seqNum);
+        unsigned int temp2 = 256; // Use 256 to handle wrap-around
+        unsigned int temp3 = static_cast<unsigned int>(ExpRxNextSeqNum);
+        unsigned int tempResult = temp1 + temp2 - temp3;
+        offset = static_cast<uint16_t>(tempResult);
+        
+        // If offset is too large, it's likely not a wrap-around but an old/duplicate packet
+        if (offset > PAFTP_REORDER_QUEUE_SIZE)
+        {
+            // It's likely a retransmission or old packet - handle directly
+            ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Received old/retransmitted packet - processing directly");
+            return RxPacketProcess(std::move(data));
+        }
+    }
+    else
+    {
+        // Normal case: received sequence number is higher than expected
+        offset = seqNum - ExpRxNextSeqNum;
+    }
+    
+    // Ensure offset is within queue range
     if (offset >= PAFTP_REORDER_QUEUE_SIZE)
     {
         // Offset is too big
-        // => It may be the unexpected packet or duplicate packet => drop it
-        ChipLogError(WiFiPAF, "Offset (%u) is too big => drop the packet", offset);
-        ChipLogDebugBufferWiFiPAFEndPoint(WiFiPAF, data);
-        return CHIP_NO_ERROR;
+        // => It may be the unexpected packet or duplicate packet => process directly
+        ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Offset (%u) is too big - processing directly instead of dropping", offset);
+        return RxPacketProcess(std::move(data));
     }
 
     // Save the packet to the reorder-queue
     if (ReorderQueue[offset] == nullptr)
     {
+        ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Queuing packet at offset %u", offset);
         ReorderQueue[offset] = std::move(data).UnsafeRelease();
         ItemsInReorderQueue++;
+    }
+    else
+    {
+        ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Queue slot already occupied at offset %u - processing directly", offset);
+        return RxPacketProcess(std::move(data));
     }
 
     // Consume the packets in the reorder queue if no hole exists
     if (ReorderQueue[0] == nullptr)
     {
         // The hole still exists => Can't continue
-        ChipLogError(WiFiPAF, "The hole still exists. Packets in reorder-queue: %u", ItemsInReorderQueue);
+        ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Hole still exists at offset 0. Packets in reorder-queue: %u", ItemsInReorderQueue);
         return CHIP_NO_ERROR;
     }
+    
+    ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Processing packets from reorder queue");
     uint8_t qidx;
     for (qidx = 0; qidx < PAFTP_REORDER_QUEUE_SIZE; qidx++)
     {
@@ -969,7 +1029,7 @@ CHIP_ERROR WiFiPAFEndPoint::Receive(PacketBufferHandle && data)
             break;
         }
         // Consume the saved packets
-        ChipLogProgress(WiFiPAF, "Rx processing from the re-order queue [%u]", qidx);
+        ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Processing packet from reorder queue [%u]", qidx);
         err                = RxPacketProcess(System::PacketBufferHandle::Adopt(ReorderQueue[qidx]));
         ReorderQueue[qidx] = nullptr;
         ItemsInReorderQueue--;
@@ -980,11 +1040,13 @@ CHIP_ERROR WiFiPAFEndPoint::Receive(PacketBufferHandle && data)
     {
         if (ReorderQueue[qidx] != nullptr)
         {
+            ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Moving packet from offset %u to %u", qidx, newId);
             ReorderQueue[newId] = ReorderQueue[qidx];
             ReorderQueue[qidx]  = nullptr;
         }
     }
-    printf("err: %" CHIP_ERROR_FORMAT "\n", err.Format());
+    
+    ChipLogError(WiFiPAF, "WiFiPAF RECEIVE: Reordering complete, err: %" CHIP_ERROR_FORMAT, err.Format());
     return err;
 }
 
@@ -999,6 +1061,9 @@ CHIP_ERROR WiFiPAFEndPoint::RxPacketProcess(PacketBufferHandle && data)
     BitFlags<WiFiPAFTP::HeaderFlags> rx_flags;
     Encoding::LittleEndian::Reader reader(data->Start(), data->DataLength());
     DebugPktAckSn(PktDirect_t::kRx, reader, data->Start());
+
+    // Log the packet we're processing
+    ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Processing packet of length %u", static_cast<unsigned>(data->DataLength()));
 
     { // This is a special handling on the first CHIPoPAF data packet, the CapabilitiesRequest.
         // If we're receiving the first inbound packet of a PAF transport connection handshake...
@@ -1045,10 +1110,28 @@ CHIP_ERROR WiFiPAFEndPoint::RxPacketProcess(PacketBufferHandle && data)
 
     // Pass received packet into PAFTP protocol engine.
     err = mPafTP.HandleCharacteristicReceived(std::move(data), receivedAck, didReceiveAck);
+    
+    // Log the result of the protocol engine handling the packet
+    ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: PAFTP engine result: %s, didReceiveAck=%d, receivedAck=%u", 
+                chip::ErrorStr(err), didReceiveAck, receivedAck);
 
     ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "PAFTP rx'd characteristic, state after:");
     mPafTP.LogStateDebug();
-    SuccessOrExit(err);
+    
+    // Handle specific error cases for received packets
+    if (err == WIFIPAF_ERROR_INVALID_PAFTP_SEQUENCE_NUMBER)
+    {
+        // This might be a duplicate packet, which we can safely ignore
+        ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Ignoring duplicate packet with invalid sequence number");
+        err = CHIP_NO_ERROR;
+        ExitNow();
+    }
+    else if (err != CHIP_NO_ERROR)
+    {
+        // For other errors, log but continue processing if possible
+        ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Error handling packet: %s", chip::ErrorStr(err));
+        SuccessOrExit(err);
+    }
 
     // Protocol engine accepted the fragment, so shrink local receive window counter by 1.
     mLocalReceiveWindowSize = static_cast<SequenceNumber_t>(mLocalReceiveWindowSize - 1);
@@ -1057,13 +1140,18 @@ CHIP_ERROR WiFiPAFEndPoint::RxPacketProcess(PacketBufferHandle && data)
     // Respond to received ack, if any.
     if (didReceiveAck)
     {
-        ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "got paftp ack = %u", receivedAck);
+        ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Got ACK=%u in packet", receivedAck);
+        
+        // Reset retransmission counter on successful ACK
+        mRetransmissionCount = 0;
 
         // If ack was rx'd for newest unacked sent fragment, stop ack received timer.
         if (!mPafTP.ExpectingAck())
         {
-            ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "got ack for last outstanding fragment");
+            ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Got ACK for last outstanding fragment");
             StopAckReceivedTimer();
+            // Also stop the retransmit timer since we received the ack
+            StopRetransmitTimer();
 
             if (mState == kState_Closing && mSendQueue.IsNull() && mPafTP.TxState() == WiFiPAFTP::kState_Idle)
             {
@@ -1074,8 +1162,11 @@ CHIP_ERROR WiFiPAFEndPoint::RxPacketProcess(PacketBufferHandle && data)
         }
         else // Else there are still sent fragments for which acks are expected, so restart ack received timer.
         {
-            ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "still expecting ack(s), restarting timer...");
+            ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Still expecting ACKs, restarting timers");
             err = RestartAckReceivedTimer();
+            // Also restart retransmit timer since we're still waiting for acks
+            StopRetransmitTimer();
+            StartRetransmitTimer();
             SuccessOrExit(err);
         }
 
@@ -1088,7 +1179,7 @@ CHIP_ERROR WiFiPAFEndPoint::RxPacketProcess(PacketBufferHandle && data)
         mRemoteReceiveWindowSize =
             AdjustRemoteReceiveWindow(receivedAck, mReceiveWindowMaxSize, mPafTP.GetNewestUnackedSentSequenceNumber());
 
-        ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "adjusted remote rx window, new size = %u", mRemoteReceiveWindowSize);
+        ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Adjusted remote rx window, new size = %u", mRemoteReceiveWindowSize);
 
         // Restart message transmission if it was previously paused due to window exhaustion.
         err = DriveSending();
@@ -1113,13 +1204,13 @@ CHIP_ERROR WiFiPAFEndPoint::RxPacketProcess(PacketBufferHandle && data)
         if (mLocalReceiveWindowSize <= WIFIPAF_CONFIG_IMMEDIATE_ACK_WINDOW_THRESHOLD &&
             !mConnStateFlags.Has(ConnectionStateFlag::kOperationInFlight))
         {
-            ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "sending immediate ack");
+            ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Sending immediate ACK");
             err = DriveStandAloneAck();
             SuccessOrExit(err);
         }
         else
         {
-            ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "starting send-ack timer");
+            ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Starting send-ACK timer");
 
             // Send ack when timer expires.
             err = StartSendAckTimer();
@@ -1154,14 +1245,121 @@ CHIP_ERROR WiFiPAFEndPoint::RxPacketProcess(PacketBufferHandle && data)
 exit:
     if (err != CHIP_NO_ERROR)
     {
+        ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Error during processing: %s", chip::ErrorStr(err));
         DoClose(closeFlags, err);
     }
 
     return err;
 }
 
+CHIP_ERROR WiFiPAFEndPoint::StartRetransmitTimer()
+{
+    // Make sure we have a valid layer and system layer
+    VerifyOrReturnError(mWiFiPafLayer != nullptr, CHIP_ERROR_INCORRECT_STATE);
+    VerifyOrReturnError(mWiFiPafLayer->mSystemLayer != nullptr, CHIP_ERROR_INCORRECT_STATE);
+    
+    if (!mTimerStateFlags.Has(TimerStateFlag::kRetransmitTimerRunning))
+    {
+        ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "starting RetransmitTimer");
+        const CHIP_ERROR timerErr = mWiFiPafLayer->mSystemLayer->StartTimer(
+            System::Clock::Milliseconds32(PAFTP_RETRANSMIT_TIMEOUT_MS), HandleRetransmitTimeout, this);
+        ReturnErrorOnFailure(timerErr);
+
+        mTimerStateFlags.Set(TimerStateFlag::kRetransmitTimerRunning);
+    }
+
+    return CHIP_NO_ERROR;
+}
+
+void WiFiPAFEndPoint::StopRetransmitTimer()
+{
+    // Make sure mWiFiPafLayer exists
+    if (mWiFiPafLayer != nullptr)
+    {
+        // Cancel any existing retransmit timer.
+        mWiFiPafLayer->mSystemLayer->CancelTimer(HandleRetransmitTimeout, this);
+    }
+    mTimerStateFlags.Clear(TimerStateFlag::kRetransmitTimerRunning);
+}
+
+void WiFiPAFEndPoint::HandleRetransmitTimeout(chip::System::Layer * systemLayer, void * appState)
+{
+    WiFiPAFEndPoint * ep = static_cast<WiFiPAFEndPoint *>(appState);
+
+    // Check for event-based timer race condition.
+    if (ep->mTimerStateFlags.Has(TimerStateFlag::kRetransmitTimerRunning))
+    {
+        ep->mTimerStateFlags.Clear(TimerStateFlag::kRetransmitTimerRunning);
+
+        // Log current state before retransmission attempt
+        ChipLogError(WiFiPAF, "WiFiPAF RETRANSMIT TIMER FIRED: state=%d, current_count=%u, max_count=%u",
+                    ep->mState, ep->mRetransmitCount, ep->kMaxRetransmitCount);
+        
+        if (ep->mRetransmitCount < ep->kMaxRetransmitCount)
+        {
+            // We still have retransmission attempts remaining
+            ChipLogError(WiFiPAF, "WiFiPAF RETRANSMIT: No ACK received after 3 seconds, retransmitting packet (attempt %u of %u)", 
+                        ep->mRetransmitCount + 1, ep->kMaxRetransmitCount);
+            
+            // Log what we're retransmitting
+            if (!ep->mLastTxPacket.IsNull())
+            {
+                ChipLogError(WiFiPAF, "WiFiPAF RETRANSMIT: packet length=%u bytes", 
+                           static_cast<unsigned int>(ep->mLastTxPacket->DataLength()));
+            }
+            
+            CHIP_ERROR retransmitErr = ep->RetransmitLastPacket();
+            if (retransmitErr != CHIP_NO_ERROR)
+            {
+                ChipLogError(WiFiPAF, "WiFiPAF RETRANSMIT FAILED: %s", chip::ErrorStr(retransmitErr));
+                ep->DoClose(kWiFiPAFCloseFlag_AbortTransmission, retransmitErr);
+            }
+        }
+        else
+        {
+            // We've reached the maximum number of retransmission attempts
+            ChipLogError(WiFiPAF, "WiFiPAF RETRANSMIT: Max retransmission attempts (%u) reached, giving up", ep->kMaxRetransmitCount);
+            ep->DoClose(kWiFiPAFCloseFlag_AbortTransmission, WIFIPAF_ERROR_MAX_RETRANSMIT_ATTEMPTS_REACHED);
+        }
+    }
+}
+
+CHIP_ERROR WiFiPAFEndPoint::RetransmitLastPacket()
+{
+    // Verify that we have a packet to retransmit
+    VerifyOrReturnError(!mLastTxPacket.IsNull(), CHIP_ERROR_INCORRECT_STATE);
+    
+    // Verify that we have valid layer and transport objects
+    VerifyOrReturnError(mWiFiPafLayer != nullptr, CHIP_ERROR_INCORRECT_STATE);
+    VerifyOrReturnError(mWiFiPafLayer->mWiFiPAFTransport != nullptr, CHIP_ERROR_INCORRECT_STATE);
+
+    // Increment the retransmit count
+    mRetransmissionCount++;
+
+    // Log that we're retransmitting the packet
+    ChipLogError(WiFiPAF, "WiFiPAF RETRANSMITTING PACKET: len=%u, session_id=%" PRIu32 ", peer_id=%" PRIu32 ", attempt=%u/%u",
+                static_cast<unsigned int>(mLastTxPacket->DataLength()), 
+                mSessionInfo.id, 
+                mSessionInfo.peer_id,
+                mRetransmissionCount,
+                kMaxRetransmitCount);
+
+    // Start a new operation to resend the packet
+    mConnStateFlags.Set(ConnectionStateFlag::kOperationInFlight);
+    
+    // Send a duplicate of the last sent packet
+    mWiFiPafLayer->mWiFiPAFTransport->WiFiPAFMessageSend(mSessionInfo, mLastTxPacket.Retain());
+    
+    // Start the retransmit timer again for the next attempt
+    return StartRetransmitTimer();
+}
+
 CHIP_ERROR WiFiPAFEndPoint::SendWrite(PacketBufferHandle && buf)
 {
+    // Verify we have valid layer and transport objects
+    VerifyOrReturnError(mWiFiPafLayer != nullptr, CHIP_ERROR_INCORRECT_STATE);
+    VerifyOrReturnError(mWiFiPafLayer->mWiFiPAFTransport != nullptr, CHIP_ERROR_INCORRECT_STATE);
+    
     mConnStateFlags.Set(ConnectionStateFlag::kOperationInFlight);
 
     ChipLogDebugBufferWiFiPAFEndPoint(WiFiPAF, buf);
@@ -1175,6 +1373,19 @@ CHIP_ERROR WiFiPAFEndPoint::SendWrite(PacketBufferHandle && buf)
                    mSessionInfo.peer_id,
                    mSessionInfo.peer_addr[0], mSessionInfo.peer_addr[1], mSessionInfo.peer_addr[2],
                    mSessionInfo.peer_addr[3], mSessionInfo.peer_addr[4], mSessionInfo.peer_addr[5]);
+    
+    // Reset retransmission counter when sending a new packet
+    mRetransmissionCount = 0;
+    
+    // Save a copy of the packet for potential retransmission
+    // First, clear any existing saved packet
+    mLastTxPacket = nullptr;
+    
+    // Then make a copy of the current packet
+    mLastTxPacket = buf.Retain();
+    
+    // Add a clear debug print when sending a packet
+    ChipLogError(WiFiPAF, "PAF SEND: Sending packet with size %u bytes", static_cast<unsigned int>(buf->DataLength()));
     
     mWiFiPafLayer->mWiFiPAFTransport->WiFiPAFMessageSend(mSessionInfo, std::move(buf));
 
@@ -1195,13 +1406,17 @@ CHIP_ERROR WiFiPAFEndPoint::StartAckReceivedTimer()
 {
     if (!mTimerStateFlags.Has(TimerStateFlag::kAckReceivedTimerRunning))
     {
-        const CHIP_ERROR timerErr = mWiFiPafLayer->mSystemLayer->StartTimer(System::Clock::Milliseconds32(PAFTP_ACK_TIMEOUT_MS),
-                                                                            HandleAckReceivedTimeout, this);
-        ReturnErrorOnFailure(timerErr);
-
+        ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "starting AckReceivedTimer");
+        
+        // Use PAFTP_ACK_TIMEOUT_MS_OVERRIDE to provide enough time for retransmissions
+        CHIP_ERROR err = mWiFiPafLayer->mSystemLayer->StartTimer(System::Clock::Milliseconds32(PAFTP_ACK_TIMEOUT_MS_OVERRIDE),
+                                                                HandleAckReceivedTimeout, this);
+        if (err != CHIP_NO_ERROR)
+        {
+            return err;
+        }
         mTimerStateFlags.Set(TimerStateFlag::kAckReceivedTimerRunning);
     }
-
     return CHIP_NO_ERROR;
 }
 
@@ -1262,6 +1477,12 @@ void WiFiPAFEndPoint::StopAckReceivedTimer()
     // Cancel any existing ack-received timer.
     mWiFiPafLayer->mSystemLayer->CancelTimer(HandleAckReceivedTimeout, this);
     mTimerStateFlags.Clear(TimerStateFlag::kAckReceivedTimerRunning);
+    
+    // When stopping the timer normally (such as when an ACK is received),
+    // we can clear the last tx packet
+    if (mRetransmissionCount == 0) {
+        mLastTxPacket = nullptr;
+    }
 }
 
 void WiFiPAFEndPoint::StopSendAckTimer()
@@ -1298,10 +1519,68 @@ void WiFiPAFEndPoint::HandleAckReceivedTimeout(chip::System::Layer * systemLayer
     // Check for event-based timer race condition.
     if (ep->mTimerStateFlags.Has(TimerStateFlag::kAckReceivedTimerRunning))
     {
-        ChipLogError(WiFiPAF, "ack recv timeout, closing ep %p", ep);
-        ep->mPafTP.LogStateDebug();
+        // Mark timer as stopped
         ep->mTimerStateFlags.Clear(TimerStateFlag::kAckReceivedTimerRunning);
-        ep->DoClose(kWiFiPAFCloseFlag_AbortTransmission, WIFIPAF_ERROR_FRAGMENT_ACK_TIMED_OUT);
+        
+        // Increment retransmission counter
+        ep->mRetransmissionCount++;
+        
+        // Check if we've exceeded the maximum number of retransmission attempts
+        if (ep->mRetransmissionCount >= kMaxRetransmissionAttempts)
+        {
+            // Too many retransmission attempts, close the endpoint
+            ChipLogError(WiFiPAF, "PAF ACK TIMEOUT: Max retransmission attempts (%d) reached, closing endpoint", 
+                         kMaxRetransmissionAttempts);
+            ChipLogError(WiFiPAF, "ack recv timeout, closing ep %p", ep);
+            ep->mPafTP.LogStateDebug();
+            ep->DoClose(kWiFiPAFCloseFlag_AbortTransmission, WIFIPAF_ERROR_FRAGMENT_ACK_TIMED_OUT);
+            return;
+        }
+        
+        // Attempt to retransmit the message
+        ChipLogError(WiFiPAF, "PAF ACK TIMEOUT: No acknowledgment received, retransmission attempt %d/%d", 
+                     ep->mRetransmissionCount, kMaxRetransmissionAttempts);
+        
+        CHIP_ERROR err = CHIP_NO_ERROR;
+        
+        // Try to send the last packet that was saved
+        if (!ep->mLastTxPacket.IsNull())
+        {
+            ChipLogProgress(WiFiPAF, "PAF RETRANSMIT: Resending last saved packet");
+            
+            // Verify that we have valid layer and transport objects
+            if (ep->mWiFiPafLayer != nullptr && ep->mWiFiPafLayer->mWiFiPAFTransport != nullptr)
+            {
+                // Resend the packet by sending a copy of our saved packet
+                err = ep->mWiFiPafLayer->mWiFiPAFTransport->WiFiPAFMessageSend(ep->mSessionInfo, ep->mLastTxPacket.Retain());
+                
+                if (err == CHIP_NO_ERROR)
+                {
+                    // Restart the ACK received timer
+                    err = ep->StartAckReceivedTimer();
+                    if (err != CHIP_NO_ERROR)
+                    {
+                        ChipLogError(WiFiPAF, "PAF RETRANSMIT: Failed to restart ACK timer: %" CHIP_ERROR_FORMAT, err.Format());
+                        ep->DoClose(kWiFiPAFCloseFlag_AbortTransmission, err);
+                    }
+                }
+                else
+                {
+                    ChipLogError(WiFiPAF, "PAF RETRANSMIT: Failed to resend packet: %" CHIP_ERROR_FORMAT, err.Format());
+                    ep->DoClose(kWiFiPAFCloseFlag_AbortTransmission, err);
+                }
+            }
+            else
+            {
+                ChipLogError(WiFiPAF, "PAF RETRANSMIT: Missing WiFiPAFLayer or WiFiPAFTransport");
+                ep->DoClose(kWiFiPAFCloseFlag_AbortTransmission, CHIP_ERROR_INCORRECT_STATE);
+            }
+        }
+        else
+        {
+            ChipLogError(WiFiPAF, "PAF RETRANSMIT: No packet available to retransmit");
+            ep->DoClose(kWiFiPAFCloseFlag_AbortTransmission, WIFIPAF_ERROR_FRAGMENT_ACK_TIMED_OUT);
+        }
     }
 }
 
@@ -1345,6 +1624,13 @@ void WiFiPAFEndPoint::HandleWaitResourceTimeout(chip::System::Layer * systemLaye
 
 void WiFiPAFEndPoint::ClearAll()
 {
+    // Free the last sent packet buffer before clearing everything
+    mLastTxPacket = nullptr;
+    
+    // Reset retransmit count
+    mRetransmissionCount = 0;
+    
+    // Proceed with the original clear operation
     memset(reinterpret_cast<uint8_t *>(this), 0, sizeof(WiFiPAFEndPoint));
     return;
 }
