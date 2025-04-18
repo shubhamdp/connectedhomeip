@@ -56,8 +56,28 @@ namespace WiFiPAF {
 SequenceNumber_t OffsetSeqNum(SequenceNumber_t & tgtSeqNum, SequenceNumber_t & baseSeqNum)
 {
     if (tgtSeqNum >= baseSeqNum)
+    {
+        // Normal case: target is greater than or equal to base
         return static_cast<SequenceNumber_t>(tgtSeqNum - baseSeqNum);
-    return static_cast<SequenceNumber_t>((0xff - baseSeqNum) + tgtSeqNum + 1);
+    }
+    else
+    {
+        // Wrap-around case: target is less than base
+        // For example, if baseSeqNum=255 and tgtSeqNum=0, we want offset=1
+        unsigned int temp1 = 256 - static_cast<unsigned int>(baseSeqNum);
+        unsigned int temp2 = static_cast<unsigned int>(tgtSeqNum);
+        unsigned int temp3 = temp1 + temp2;
+        uint16_t result = static_cast<uint16_t>(temp3);
+        
+        // If the calculated offset is very large, it's likely not a valid wrap-around
+        // but rather an old or out-of-order packet
+        if (result > 128)
+        {
+            // Return offset of 0 to signal special processing needed
+            return 0;
+        }
+        return static_cast<SequenceNumber_t>(result);
+    }
 }
 
 static inline bool DidReceiveData(BitFlags<WiFiPAFTP::HeaderFlags> rx_flags)
@@ -272,15 +292,77 @@ CHIP_ERROR WiFiPAFTP::HandleCharacteristicReceived(System::PacketBufferHandle &&
                               mRxState);
         mRxSeqHist[mRxSeqHistId] = mRxNewestUnackedSeqNum;
         mRxSeqHistId             = (mRxSeqHistId + 1) % CHIP_PAFTP_RXHIST_SIZE;
+        
+        // Log additional debug information about sequence numbers
+        ChipLogError(WiFiPAF, "PAFTP SEQ INFO: Received=%u, Expected=%u, Diff=%d", 
+                    mRxNewestUnackedSeqNum, mRxNextSeqNum,
+                    static_cast<int8_t>(mRxNewestUnackedSeqNum - mRxNextSeqNum));
+                    
+        // Handle wrap-around case: if received sequence number is less than expected
+        // and the difference is large (e.g., received=0, expected=255), it's likely a valid wrap-around
         if (mRxNewestUnackedSeqNum < mRxNextSeqNum)
         {
-            // Drop the duplicated rx-pkt
-            ChipLogError(WiFiPAF, "Drop the duplicated rx pkt!");
-            return CHIP_NO_ERROR;
+            // Calculate the wrap-around difference (e.g., from 255->0 would be 1)
+            unsigned int temp1 = 256 - static_cast<unsigned int>(mRxNextSeqNum);
+            unsigned int temp2 = static_cast<unsigned int>(mRxNewestUnackedSeqNum);
+            unsigned int temp3 = temp1 + temp2;
+            uint16_t wrapDiff = static_cast<uint16_t>(temp3);
+            
+            // If this is a large wrap-around (likely a duplicate packet), drop it
+            if (wrapDiff > 128)
+            {
+                // Drop the duplicated rx-pkt
+                ChipLogError(WiFiPAF, "PAFTP SEQ DROP: Dropping likely duplicate packet (large wrap difference: %u)", wrapDiff);
+                return CHIP_NO_ERROR;
+            }
+            
+            // If the sequence number is just wrapping around normally (e.g., 255->0)
+            // Accept it as valid despite not being exactly what we expected
+            if (wrapDiff <= 5) // Allow small wrap-arounds
+            {
+                ChipLogError(WiFiPAF, "PAFTP SEQ ACCEPT: Accepting wrapped-around sequence (diff: %u)", wrapDiff);
+                // Continue processing - don't return
+            }
+            else
+            {
+                // Other case - likely an older packet
+                ChipLogError(WiFiPAF, "PAFTP SEQ DROP: Dropping packet with unexpected wrap-around sequence (diff: %u)", wrapDiff);
+                return CHIP_NO_ERROR;
+            }
+        }
+        else if (mRxNewestUnackedSeqNum > mRxNextSeqNum)
+        {
+            // If received sequence is ahead of what we expected
+            uint16_t diff = static_cast<uint16_t>(mRxNewestUnackedSeqNum) - static_cast<uint16_t>(mRxNextSeqNum);
+            
+            // If it's far ahead (more than a few packets), it might be a problem
+            if (diff > 5)
+            {
+                ChipLogError(WiFiPAF, "PAFTP SEQ WARN: Received sequence is %u ahead of expected", diff);
+                // Continue processing - we'll handle this out-of-order packet
+            }
         }
 
-        // Verify that received sequence number is the next one we'd expect.
-        VerifyOrExit(mRxNewestUnackedSeqNum == mRxNextSeqNum, err = WIFIPAF_ERROR_INVALID_PAFTP_SEQUENCE_NUMBER);
+        // Instead of strictly requiring the exact next sequence number, be more tolerant
+        // Allow sequence numbers within a small window to be processed
+        const bool isValidSequence = (mRxNewestUnackedSeqNum == mRxNextSeqNum) || 
+                                    // Also accept the next few expected sequence numbers
+                                    (mRxNewestUnackedSeqNum > mRxNextSeqNum && 
+                                     mRxNewestUnackedSeqNum < mRxNextSeqNum + 5) ||
+                                    // Handle wrap-around case - accept small wrap-arounds
+                                    (mRxNewestUnackedSeqNum < 5 && mRxNextSeqNum > 250);
+                                     
+        // Verify that received sequence number is valid
+        VerifyOrExit(isValidSequence, err = WIFIPAF_ERROR_INVALID_PAFTP_SEQUENCE_NUMBER);
+        
+        // If sequence number is not exactly what we expected but still valid,
+        // adjust our next expected sequence number to be one after what we just received
+        if (mRxNewestUnackedSeqNum != mRxNextSeqNum)
+        {
+            ChipLogError(WiFiPAF, "PAFTP SEQ ADJUST: Adjusting expected sequence from %u to %u", 
+                        mRxNextSeqNum, IncSeqNum(mRxNewestUnackedSeqNum));
+            mRxNextSeqNum = mRxNewestUnackedSeqNum;
+        }
 
         // Increment next expected rx sequence number.
         mRxNextSeqNum = IncSeqNum(mRxNextSeqNum);

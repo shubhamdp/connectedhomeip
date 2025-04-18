@@ -577,7 +577,7 @@ void ConnectivityManagerImpl::OnNanReceive(const wifi_event_nan_receive_t & even
     // printf("\n");
 
     // construct packet buffer
-    System::PacketBufferHandle pbuf = System::PacketBufferHandle::NewWithData(ssi + 4, static_cast<uint16_t>(event.ssi_len - 4));
+    System::PacketBufferHandle pbuf = System::PacketBufferHandle::NewWithData(ssi + 4, event.ssi_len - 4);
     bool status                     = WiFiPAF::WiFiPAFLayer::GetWiFiPAFLayer().OnWiFiPAFMessageReceived(RxInfo, std::move(pbuf));
     if (status)
     {

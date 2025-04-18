@@ -200,7 +200,7 @@ void PlatformManagerImpl::HandleESPSystemEvent(void * arg, esp_event_base_t even
             memcpy(ssi, event_data->ssi, event_data->ssi_len);
 
             printf("esp32/platformmanagerimpl -- ssi_len: %u, ssi: ", event_data->ssi_len);
-            for (uint8_t i = 0; i < event_data->ssi_len; i++)
+            for (uint16_t i = 0; i < event_data->ssi_len; i++)
             {
                 printf("%02X ", ssi[i]);
             }
