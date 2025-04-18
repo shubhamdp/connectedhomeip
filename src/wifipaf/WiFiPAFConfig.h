@@ -137,6 +137,6 @@
 /*
  * Ref: [4.748] Supported Maximum Service Specific Info Length
  */
-#define CHIP_PAF_DEFAULT_MTU 350
+#define CHIP_PAF_DEFAULT_MTU 1024
 
 #include <lib/core/CHIPConfig.h>

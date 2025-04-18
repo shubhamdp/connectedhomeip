@@ -268,6 +268,15 @@ bool WiFiPAFLayer::OnWiFiPAFMessageReceived(WiFiPAFSession & RxInfo, System::Pac
 {
     WiFiPAFEndPoint * endPoint = sWiFiPAFEndPointPool.Find(reinterpret_cast<WIFIPAF_CONNECTION_OBJECT>(&RxInfo));
     VerifyOrReturnError(endPoint != nullptr, false, ChipLogError(WiFiPAF, "No endpoint for received indication"));
+    
+    // Log packet reception with detailed information
+    ChipLogError(WiFiPAF, "WiFiPAF RECEIVED PACKET: len=%u, session_id=%" PRIu32 ", peer_id=%" PRIu32 ", peer_mac=%02x:%02x:%02x:%02x:%02x:%02x",
+                   static_cast<unsigned int>(msg->DataLength()), 
+                   RxInfo.id, 
+                   RxInfo.peer_id,
+                   RxInfo.peer_addr[0], RxInfo.peer_addr[1], RxInfo.peer_addr[2],
+                   RxInfo.peer_addr[3], RxInfo.peer_addr[4], RxInfo.peer_addr[5]);
+    
     RxInfo.role    = endPoint->mSessionInfo.role;
     CHIP_ERROR err = endPoint->Receive(std::move(msg));
     VerifyOrReturnError(err == CHIP_NO_ERROR, false,
