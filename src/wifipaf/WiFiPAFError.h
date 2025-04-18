@@ -204,13 +204,22 @@
 #define WIFIPAF_ERROR_REASSEMBLER_MISSING_DATA                 CHIP_WIFIPAF_ERROR(0x1c)
 
 /**
+ *  @def WIFIPAF_ERROR_MAX_RETRANSMIT_ATTEMPTS_REACHED
+ *
+ *  @brief
+ *    Maximum number of retransmission attempts reached without receiving an ACK.
+ *
+ */
+#define WIFIPAF_ERROR_MAX_RETRANSMIT_ATTEMPTS_REACHED          CHIP_WIFIPAF_ERROR(0x1d)
+
+/**
  *  @def WIFIPAF_ERROR_INVALID_PAFP_HEADER_FLAGS
  *
  *  @brief
  *    A set of Wi-Fi PAF Transport Protocol (PAFTP) header flags is invalid.
  *
  */
-#define WIFIPAF_ERROR_INVALID_PAFTP_HEADER_FLAGS                 CHIP_WIFIPAF_ERROR(0x1d)
+#define WIFIPAF_ERROR_INVALID_PAFTP_HEADER_FLAGS                 CHIP_WIFIPAF_ERROR(0x1e)
 
 /**
  *  @def WIFIPAF_ERROR_INVALID_PAFTP_SEQUENCE_NUMBER
@@ -219,7 +228,7 @@
  *    A Wi-Fi PAF Transport Protocol (PAFTP) fragment sequence number is invalid.
  *
  */
-#define WIFIPAF_ERROR_INVALID_PAFTP_SEQUENCE_NUMBER              CHIP_WIFIPAF_ERROR(0x1e)
+#define WIFIPAF_ERROR_INVALID_PAFTP_SEQUENCE_NUMBER              CHIP_WIFIPAF_ERROR(0x1f)
 
 /**
  *  @def WIFIPAF_ERROR_REASSEMBLER_INCORRECT_STATE
@@ -229,7 +238,7 @@
  *    encountered an unexpected state.
  *
  */
-#define WIFIPAF_ERROR_REASSEMBLER_INCORRECT_STATE              CHIP_WIFIPAF_ERROR(0x1f)
+#define WIFIPAF_ERROR_REASSEMBLER_INCORRECT_STATE              CHIP_WIFIPAF_ERROR(0x20)
 
 /**
  *  @}

@@ -94,7 +94,7 @@
  *
  */
 #ifndef PAF_MAX_RECEIVE_WINDOW_SIZE
-#define PAF_MAX_RECEIVE_WINDOW_SIZE 6
+#define PAF_MAX_RECEIVE_WINDOW_SIZE (6 * 2)
 #endif
 
 #if (PAF_MAX_RECEIVE_WINDOW_SIZE < 3)
@@ -137,6 +137,6 @@
 /*
  * Ref: [4.748] Supported Maximum Service Specific Info Length
  */
-#define CHIP_PAF_DEFAULT_MTU 1024
+#define CHIP_PAF_DEFAULT_MTU (1024) // (350 - 4)
 
 #include <lib/core/CHIPConfig.h>
