@@ -491,6 +491,15 @@ CHIP_ERROR WiFiPAFEndPoint::HandleFragmentConfirmationReceived(bool result)
         mConnStateFlags.Clear(ConnectionStateFlag::kStandAloneAckInFlight);
     }
 
+    // Log ACK received with result
+    ChipLogError(WiFiPAF, "WiFiPAF RECEIVED ACK: result=%s, session_id=%" PRIu32 ", peer_id=%" PRIu32 ", peer_mac=%02x:%02x:%02x:%02x:%02x:%02x, seq=%u",
+                   result ? "SUCCESS" : "FAILURE", 
+                   mSessionInfo.id, 
+                   mSessionInfo.peer_id,
+                   mSessionInfo.peer_addr[0], mSessionInfo.peer_addr[1], mSessionInfo.peer_addr[2],
+                   mSessionInfo.peer_addr[3], mSessionInfo.peer_addr[4], mSessionInfo.peer_addr[5],
+                   mPafTP.GetNewestUnackedSentSequenceNumber());
+
     if (result != true)
     {
         // Something wrong in writing packets
@@ -531,6 +540,16 @@ CHIP_ERROR WiFiPAFEndPoint::HandleSendConfirmationReceived(bool result)
 {
     // Mark outstanding operation as finished.
     mConnStateFlags.Clear(ConnectionStateFlag::kOperationInFlight);
+
+    // Log ACK received at the send confirmation level
+    ChipLogError(WiFiPAF, "WiFiPAF SEND CONFIRMATION: result=%s, handshake=%s, session_id=%" PRIu32 ", peer_id=%" PRIu32 ", peer_mac=%02x:%02x:%02x:%02x:%02x:%02x, seq=%u",
+                   result ? "SUCCESS" : "FAILURE", 
+                   !mConnStateFlags.Has(ConnectionStateFlag::kCapabilitiesConfReceived) ? "YES" : "NO",
+                   mSessionInfo.id, 
+                   mSessionInfo.peer_id,
+                   mSessionInfo.peer_addr[0], mSessionInfo.peer_addr[1], mSessionInfo.peer_addr[2],
+                   mSessionInfo.peer_addr[3], mSessionInfo.peer_addr[4], mSessionInfo.peer_addr[5],
+                   mPafTP.GetNewestUnackedSentSequenceNumber());
 
     // If confirmation was for outbound portion of PAFTP connect handshake...
     if (!mConnStateFlags.Has(ConnectionStateFlag::kCapabilitiesConfReceived))
@@ -1114,6 +1133,14 @@ CHIP_ERROR WiFiPAFEndPoint::RxPacketProcess(PacketBufferHandle && data)
         // Take ownership of message buffer
         System::PacketBufferHandle full_packet = mPafTP.TakeRxPacket();
 
+        // Log message reassembly completion with detailed information
+        ChipLogError(WiFiPAF, "WiFiPAF REASSEMBLED COMPLETE MESSAGE: len=%u, session_id=%" PRIu32 ", peer_id=%" PRIu32 ", peer_mac=%02x:%02x:%02x:%02x:%02x:%02x",
+                       static_cast<unsigned int>(full_packet->DataLength()), 
+                       mSessionInfo.id, 
+                       mSessionInfo.peer_id,
+                       mSessionInfo.peer_addr[0], mSessionInfo.peer_addr[1], mSessionInfo.peer_addr[2],
+                       mSessionInfo.peer_addr[3], mSessionInfo.peer_addr[4], mSessionInfo.peer_addr[5]);
+
         ChipLogDebugWiFiPAFEndPoint(WiFiPAF, "reassembled whole msg, len = %u", static_cast<unsigned>(full_packet->DataLength()));
 
         // If we have a message received callback, and end point is not closing...
@@ -1140,6 +1167,15 @@ CHIP_ERROR WiFiPAFEndPoint::SendWrite(PacketBufferHandle && buf)
     ChipLogDebugBufferWiFiPAFEndPoint(WiFiPAF, buf);
     Encoding::LittleEndian::Reader reader(buf->Start(), buf->DataLength());
     DebugPktAckSn(PktDirect_t::kTx, reader, buf->Start());
+    
+    // Log packet send with detailed information
+    ChipLogError(WiFiPAF, "WiFiPAF SENDING PACKET: len=%u, session_id=%" PRIu32 ", peer_id=%" PRIu32 ", peer_mac=%02x:%02x:%02x:%02x:%02x:%02x",
+                   static_cast<unsigned int>(buf->DataLength()), 
+                   mSessionInfo.id, 
+                   mSessionInfo.peer_id,
+                   mSessionInfo.peer_addr[0], mSessionInfo.peer_addr[1], mSessionInfo.peer_addr[2],
+                   mSessionInfo.peer_addr[3], mSessionInfo.peer_addr[4], mSessionInfo.peer_addr[5]);
+    
     mWiFiPafLayer->mWiFiPAFTransport->WiFiPAFMessageSend(mSessionInfo, std::move(buf));
 
     return CHIP_NO_ERROR;
