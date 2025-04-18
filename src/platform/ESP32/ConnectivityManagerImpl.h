@@ -193,8 +193,6 @@ private:
 
     // private ones that above would call
     void OnNanReceive(const wifi_event_nan_receive_t & event, uint8_t * ssi);
-    void OnNanReplied(const wifi_event_nan_replied_t & event);
-    // void OnNanPublishTerminated();
 
     // We do not support PAF discovery and subscribe for now
     CHIP_ERROR _WiFiPAFSubscribe(const uint16_t & connDiscriminator, void * appState, OnConnectionCompleteFunct onSuccess,
