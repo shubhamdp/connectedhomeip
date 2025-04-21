@@ -1131,7 +1131,6 @@ CHIP_ERROR WiFiPAFEndPoint::RxPacketProcess(PacketBufferHandle && data)
         // Reset retransmission counter on successful ACK
         mRetransmissionCount = 0;
 
-        // If ack was rx'd for newest unacked sent fragment, stop ack received timer.
         if (!mPafTP.ExpectingAck())
         {
             ChipLogError(WiFiPAF, "WiFiPAF RX PROCESS: Got ACK for last outstanding fragment");
@@ -1279,13 +1278,13 @@ void WiFiPAFEndPoint::HandleRetransmitTimeout(chip::System::Layer * systemLayer,
 
         // Log current state before retransmission attempt
         ChipLogError(WiFiPAF, "WiFiPAF RETRANSMIT TIMER FIRED: state=%d, current_count=%u, max_count=%u",
-                    ep->mState, ep->mRetransmitCount, ep->kMaxRetransmitCount);
+                    ep->mState, ep->mRetransmissionCount, ep->kMaxRetransmitCount);
         
-        if (ep->mRetransmitCount < ep->kMaxRetransmitCount)
+        if (ep->mRetransmissionCount < ep->kMaxRetransmitCount)
         {
             // We still have retransmission attempts remaining
             ChipLogError(WiFiPAF, "WiFiPAF RETRANSMIT: No ACK received after 3 seconds, retransmitting packet (attempt %u of %u)", 
-                        ep->mRetransmitCount + 1, ep->kMaxRetransmitCount);
+                        ep->mRetransmissionCount + 1, ep->kMaxRetransmitCount);
             
             // Log what we're retransmitting
             if (!ep->mLastTxPacket.IsNull())
@@ -1484,11 +1483,11 @@ void WiFiPAFEndPoint::HandleAckReceivedTimeout(chip::System::Layer * systemLayer
         ep->mRetransmissionCount++;
         
         // Check if we've exceeded the maximum number of retransmission attempts
-        if (ep->mRetransmissionCount >= kMaxRetransmissionAttempts)
+        if (ep->mRetransmissionCount >= kMaxRetransmitCount)
         {
             // Too many retransmission attempts, close the endpoint
             ChipLogError(WiFiPAF, "PAF ACK TIMEOUT: Max retransmission attempts (%d) reached, closing endpoint", 
-                         kMaxRetransmissionAttempts);
+                         kMaxRetransmitCount);
             ChipLogError(WiFiPAF, "ack recv timeout, closing ep %p", ep);
             ep->mPafTP.LogStateDebug();
             ep->DoClose(kWiFiPAFCloseFlag_AbortTransmission, WIFIPAF_ERROR_FRAGMENT_ACK_TIMED_OUT);
@@ -1497,7 +1496,7 @@ void WiFiPAFEndPoint::HandleAckReceivedTimeout(chip::System::Layer * systemLayer
         
         // Attempt to retransmit the message
         ChipLogError(WiFiPAF, "PAF ACK TIMEOUT: No acknowledgment received, retransmission attempt %d/%d", 
-                     ep->mRetransmissionCount, kMaxRetransmissionAttempts);
+                     ep->mRetransmissionCount, kMaxRetransmitCount);
         
         CHIP_ERROR err = CHIP_NO_ERROR;
         

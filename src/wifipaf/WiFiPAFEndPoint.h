@@ -134,9 +134,6 @@ private:
     // Save the last sent packet for retransmission if needed
     PacketBufferHandle mLastTxPacket;
 
-    // Retransmission count for current packet
-    uint8_t mRetransmitCount;
-
     // Maximum number of retransmission attempts before giving up
     static constexpr uint8_t kMaxRetransmitCount = 5;
 
@@ -149,9 +146,6 @@ private:
     SequenceNumber_t mRemoteReceiveWindowSize;
     SequenceNumber_t mReceiveWindowMaxSize;
 
-    // Maximum number of retransmission attempts before closing the connection
-    static constexpr uint8_t kMaxRetransmissionAttempts = 3;
-    
     // Counter for retransmission attempts
     uint8_t mRetransmissionCount = 0;
 
