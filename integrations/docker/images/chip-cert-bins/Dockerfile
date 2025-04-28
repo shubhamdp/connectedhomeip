@@ -105,7 +105,7 @@ RUN set -x \
 
 # build and install gn
 RUN set -x \
-    && git clone https://gn.googlesource.com/gn \
+    && git clone --depth 1 https://gn.googlesource.com/gn \
     && cd gn \
     && python3 build/gen.py \
     && ninja -C out \
@@ -116,7 +116,7 @@ RUN set -x \
 
 # Install bloat comparison tools
 RUN set -x \
-    && git clone https://github.com/google/bloaty.git \
+    && git clone --depth 1 https://github.com/google/bloaty.git \
     && mkdir -p bloaty/build \
     && cd bloaty/build \
     && cmake -G Ninja ../ \
@@ -128,7 +128,7 @@ RUN set -x \
 
 # Stage 1.5: Bootstrap Matter.
 RUN mkdir /root/connectedhomeip
-RUN git clone https://github.com/project-chip/connectedhomeip.git /root/connectedhomeip
+RUN git clone --depth 1 https://github.com/project-chip/connectedhomeip.git /root/connectedhomeip
 WORKDIR /root/connectedhomeip/
 RUN git checkout ${COMMITHASH}
 RUN ./scripts/checkout_submodules.py --allow-changing-global-git-config --shallow --platform linux
@@ -147,114 +147,18 @@ RUN case ${TARGETPLATFORM} in \
     set -x \
     && source scripts/activate.sh \
     && scripts/build/build_examples.py \
-    --target linux-x64-chip-tool-ipv6only-platform-mdns \
-    --target linux-x64-shell-ipv6only-platform-mdns \
-    --target linux-x64-chip-cert-ipv6only-platform-mdns \
-    --target linux-x64-all-clusters-ipv6only \
-    --target linux-x64-all-clusters-ipv6only-nlfaultinject \
-    --target linux-x64-all-clusters-minimal-ipv6only \
-    --target linux-x64-bridge-ipv6only \
-    --target linux-x64-tv-app-ipv6only \
-    --target linux-x64-tv-casting-app-ipv6only \
-    --target linux-x64-light-ipv6only \
-    --target linux-x64-thermostat-ipv6only \
-    --target linux-x64-ota-provider-ipv6only \
-    --target linux-x64-ota-requestor-ipv6only \
-    --target linux-x64-lock-ipv6only \
-    --target linux-x64-simulated-app1-ipv6only \
-    --target linux-x64-lit-icd-ipv6only \
-    --target linux-x64-energy-gateway-ipv6only \
-    --target linux-x64-energy-management-ipv6only \
-    --target linux-x64-microwave-oven-ipv6only \
-    --target linux-x64-rvc-ipv6only \
-    --target linux-x64-fabric-bridge-rpc-ipv6only \
-    --target linux-x64-fabric-admin-rpc-ipv6only \
-    --target linux-x64-light-data-model-no-unique-id-ipv6only \
-    --target linux-x64-network-manager-ipv6only \
-    --target linux-x64-terms-and-conditions \
+   --target linux-x64-all-clusters-ipv6only \
     build \
-    && mv out/linux-x64-chip-tool-ipv6only-platform-mdns/chip-tool out/chip-tool \
-    && mv out/linux-x64-shell-ipv6only-platform-mdns/chip-shell out/chip-shell \
-    && mv out/linux-x64-chip-cert-ipv6only-platform-mdns/chip-cert out/chip-cert \
     && mv out/linux-x64-all-clusters-ipv6only/chip-all-clusters-app out/chip-all-clusters-app \
-    && mv out/linux-x64-all-clusters-ipv6only-nlfaultinject/chip-all-clusters-app out/chip-all-clusters-app-nlfaultinject \
-    && mv out/linux-x64-all-clusters-minimal-ipv6only/chip-all-clusters-minimal-app out/chip-all-clusters-minimal-app \
-    && mv out/linux-x64-bridge-ipv6only/chip-bridge-app out/chip-bridge-app \
-    && mv out/linux-x64-tv-app-ipv6only/chip-tv-app out/chip-tv-app \
-    && mv out/linux-x64-tv-casting-app-ipv6only/chip-tv-casting-app out/chip-tv-casting-app \
-    && mv out/linux-x64-light-ipv6only/chip-lighting-app out/chip-lighting-app \
-    && mv out/linux-x64-thermostat-ipv6only/thermostat-app out/thermostat-app \
-    && mv out/linux-x64-ota-provider-ipv6only/chip-ota-provider-app out/chip-ota-provider-app \
-    && mv out/linux-x64-ota-requestor-ipv6only/chip-ota-requestor-app out/chip-ota-requestor-app \
-    && mv out/linux-x64-lock-ipv6only/chip-lock-app out/chip-lock-app \
-    && mv out/linux-x64-simulated-app1-ipv6only/chip-app1 out/chip-app1 \
-    && mv out/linux-x64-lit-icd-ipv6only/lit-icd-app out/lit-icd-app \
-    && mv out/linux-x64-energy-gateway-ipv6only/chip-energy-gateway-app out/chip-energy-gateway-app \
-    && mv out/linux-x64-energy-management-ipv6only/chip-energy-management-app out/chip-energy-management-app \
-    && mv out/linux-x64-microwave-oven-ipv6only/chip-microwave-oven-app out/chip-microwave-oven-app \
-    && mv out/linux-x64-rvc-ipv6only/chip-rvc-app out/chip-rvc-app \
-    && mv out/linux-x64-fabric-bridge-rpc-ipv6only/fabric-bridge-app out/fabric-bridge-app \
-    && mv out/linux-x64-fabric-admin-rpc-ipv6only/fabric-admin out/fabric-admin \
-    && mv out/linux-x64-light-data-model-no-unique-id-ipv6only/chip-lighting-app out/chip-lighting-data-model-no-unique-id-app \
-    && mv out/linux-x64-network-manager-ipv6only/matter-network-manager-app out/matter-network-manager-app \
-    && mv out/linux-x64-terms-and-conditions/chip-terms-and-conditions-app out/chip-terms-and-conditions-app \
     ;; \
     "linux/arm64")\
     set -x \
     && source scripts/activate.sh \
     && scripts/build/build_examples.py \
-    --target linux-arm64-chip-tool-ipv6only-platform-mdns \
-    --target linux-arm64-shell-ipv6only-platform-mdns \
-    --target linux-arm64-chip-cert-ipv6only-platform-mdns \
     --target linux-arm64-all-clusters-ipv6only \
-    --target linux-arm64-all-clusters-ipv6only-nlfaultinject \
-    --target linux-arm64-all-clusters-minimal-ipv6only \
-    --target linux-arm64-bridge-ipv6only \
-    --target linux-arm64-tv-app-ipv6only \
-    --target linux-arm64-tv-casting-app-ipv6only \
-    --target linux-arm64-light-ipv6only \
-    --target linux-arm64-thermostat-ipv6only \
-    --target linux-arm64-ota-provider-ipv6only \
-    --target linux-arm64-ota-requestor-ipv6only \
-    --target linux-arm64-lock-ipv6only \
-    --target linux-arm64-simulated-app1-ipv6only \
-    --target linux-arm64-lit-icd-ipv6only \
-    --target linux-arm64-energy-gateway-ipv6only \
-    --target linux-arm64-energy-management-ipv6only \
-    --target linux-arm64-microwave-oven-ipv6only \
-    --target linux-arm64-rvc-ipv6only \
-    --target linux-arm64-fabric-bridge-rpc-ipv6only \
-    --target linux-arm64-fabric-admin-rpc-ipv6only \
-    --target linux-arm64-light-data-model-no-unique-id-ipv6only \
-    --target linux-arm64-network-manager-ipv6only \
-    --target linux-arm64-terms-and-conditions \
     build \
-    && mv out/linux-arm64-chip-tool-ipv6only-platform-mdns/chip-tool out/chip-tool \
-    && mv out/linux-arm64-shell-ipv6only-platform-mdns/chip-shell out/chip-shell \
-    && mv out/linux-arm64-chip-cert-ipv6only-platform-mdns/chip-cert out/chip-cert \
     && mv out/linux-arm64-all-clusters-ipv6only/chip-all-clusters-app out/chip-all-clusters-app \
-    && mv out/linux-arm64-all-clusters-ipv6only-nlfaultinject/chip-all-clusters-app out/chip-all-clusters-app-nlfaultinject \
-    && mv out/linux-arm64-all-clusters-minimal-ipv6only/chip-all-clusters-minimal-app out/chip-all-clusters-minimal-app \
-    && mv out/linux-arm64-bridge-ipv6only/chip-bridge-app out/chip-bridge-app \
-    && mv out/linux-arm64-tv-app-ipv6only/chip-tv-app out/chip-tv-app \
-    && mv out/linux-arm64-tv-casting-app-ipv6only/chip-tv-casting-app out/chip-tv-casting-app \
-    && mv out/linux-arm64-light-ipv6only/chip-lighting-app out/chip-lighting-app \
-    && mv out/linux-arm64-thermostat-ipv6only/thermostat-app out/thermostat-app \
-    && mv out/linux-arm64-ota-provider-ipv6only/chip-ota-provider-app out/chip-ota-provider-app \
-    && mv out/linux-arm64-ota-requestor-ipv6only/chip-ota-requestor-app out/chip-ota-requestor-app \
-    && mv out/linux-arm64-lock-ipv6only/chip-lock-app out/chip-lock-app \
-    && mv out/linux-arm64-simulated-app1-ipv6only/chip-app1 out/chip-app1 \
-    && mv out/linux-arm64-lit-icd-ipv6only/lit-icd-app out/lit-icd-app \
-    && mv out/linux-arm64-energy-gateway-ipv6only/chip-energy-gateway-app out/chip-energy-gateway-app \
-    && mv out/linux-arm64-energy-management-ipv6only/chip-energy-management-app out/chip-energy-management-app \
-    && mv out/linux-arm64-microwave-oven-ipv6only/chip-microwave-oven-app out/chip-microwave-oven-app \
-    && mv out/linux-arm64-rvc-ipv6only/chip-rvc-app out/chip-rvc-app \
-    && mv out/linux-arm64-fabric-bridge-rpc-ipv6only/fabric-bridge-app out/fabric-bridge-app \
-    && mv out/linux-arm64-fabric-admin-rpc-ipv6only/fabric-admin out/fabric-admin \
-    && mv out/linux-arm64-light-data-model-no-unique-id-ipv6only/chip-lighting-app out/chip-lighting-data-model-no-unique-id-app \
-    && mv out/linux-arm64-network-manager-ipv6only/matter-network-manager-app out/matter-network-manager-app \
-    && mv out/linux-arm64-terms-and-conditions/chip-terms-and-conditions-app out/chip-terms-and-conditions-app \
-    ;; \
+      ;; \
     *) ;; \
     esac
 
@@ -269,32 +173,7 @@ RUN apt-get install -y libssl-dev libdbus-1-dev libglib2.0-dev libavahi-client-d
 WORKDIR /root/
 COPY --from=chip-build-cert-bins /root/.sdk-sha-version .sdk-sha-version
 RUN mkdir apps
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-tool apps/chip-tool
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-shell apps/chip-shell
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-cert apps/chip-cert
 COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-all-clusters-app apps/chip-all-clusters-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-all-clusters-app-nlfaultinject apps/chip-all-clusters-app-nlfaultinject
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-all-clusters-minimal-app apps/chip-all-clusters-minimal-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-lighting-app apps/chip-lighting-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-tv-casting-app apps/chip-tv-casting-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-tv-app apps/chip-tv-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-bridge-app apps/chip-bridge-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/thermostat-app apps/thermostat-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-ota-provider-app apps/chip-ota-provider-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-ota-requestor-app apps/chip-ota-requestor-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-lock-app apps/chip-lock-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-app1 apps/chip-app1
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/lit-icd-app apps/lit-icd-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-energy-gateway-app apps/chip-energy-gateway-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-energy-management-app apps/chip-energy-management-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-microwave-oven-app apps/chip-microwave-oven-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-rvc-app apps/chip-rvc-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/examples/fabric-admin/scripts/fabric-sync-app.py apps/fabric-sync-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/fabric-bridge-app apps/fabric-bridge-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/fabric-admin apps/fabric-admin
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-lighting-data-model-no-unique-id-app apps/chip-lighting-data-model-no-unique-id-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/matter-network-manager-app apps/matter-network-manager-app
-COPY --from=chip-build-cert-bins /root/connectedhomeip/out/chip-terms-and-conditions-app apps/chip-terms-and-conditions-app
 
 # Create symbolic links for now since this allows users to use existing configurations
 # for running just `app-name` instead of `apps/app-name`
