@@ -127,9 +127,10 @@ RUN set -x \
     && : # last line
 
 # Stage 1.5: Bootstrap Matter.
-RUN mkdir /root/connectedhomeip
-RUN git clone --depth 1 https://github.com/project-chip/connectedhomeip.git /root/connectedhomeip
-WORKDIR /root/connectedhomeip/
+WORKDIR mkdir /root/connectedhomeip
+RUN git init .
+RUN git remote add origin https://github.com/project-chip/connectedhomeip.git
+RUN git fetch --depth 1 ${COMMITHASH}
 RUN git checkout ${COMMITHASH}
 RUN ./scripts/checkout_submodules.py --allow-changing-global-git-config --shallow --platform linux
 RUN bash scripts/bootstrap.sh
