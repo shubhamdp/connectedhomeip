@@ -40,7 +40,7 @@ jobs:
         with:
           context: integrations/docker/images/chip-cert-bins
           push: true
-          tags: ${{ steps.meta.outputs.tags }}/chip-cert-bin:c3b6b762c843e6a487dda3d6636daf8a98adfe63
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             COMMITHASH=c3b6b762c843e6a487dda3d6636daf8a98adfe63
