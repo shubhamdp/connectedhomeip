@@ -105,7 +105,7 @@ RUN set -x \
 
 # build and install gn
 RUN set -x \
-    && git clone --depth 1 https://gn.googlesource.com/gn \
+    && git clone https://gn.googlesource.com/gn \
     && cd gn \
     && python3 build/gen.py \
     && ninja -C out \
@@ -116,7 +116,7 @@ RUN set -x \
 
 # Install bloat comparison tools
 RUN set -x \
-    && git clone --depth 1 https://github.com/google/bloaty.git \
+    && git clone https://github.com/google/bloaty.git \
     && mkdir -p bloaty/build \
     && cd bloaty/build \
     && cmake -G Ninja ../ \
