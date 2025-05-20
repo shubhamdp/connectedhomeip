@@ -1330,7 +1330,7 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args
     // TODO: args.freq_list and args.freq_list_len should be used to set channel list
 
     // Default channel if no frequency list is provided
-    uint8_t chan_list[]   = { 6 };
+    uint8_t chan_list[]   = {6} ;
     uint8_t chan_list_len = sizeof(chan_list);
 
     static uint8_t static_ssi[] = { 0x00, 0x00, 0x0F, 0x00, 0x01, 0x80, 0xF1, 0xFF };
@@ -1374,10 +1374,12 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args
     nanPublishConfig.ssi_len            = static_cast<uint16_t>(wfaSsiSize);
     nanPublishConfig.ttl                = CHIP_DEVICE_CONFIG_WIFIPAF_DISCOVERY_TIMEOUT_SECS;
     nanPublishConfig.usd_discovery_flag = 1;                                     // Enable USD
-    nanPublishConfig.usd_publish_config = esp_wifi_nan_get_default_usd_config(); // Use default USD config
+    nanPublishConfig.usd_publish_config = DEFAULT_USD_PUBLISH_CFG(); // get_default_usd_publish_cfg(); // Use default USD config
 
     nanPublishConfig.usd_publish_config.usd_chan_list     = chan_list;
     nanPublishConfig.usd_publish_config.usd_chan_list_len = chan_list_len;
+
+    // nanPublishConfig.usd_publish_config.usd_default_channel = 6;
 
     uint32_t publish_id = esp_wifi_nan_publish_service(&nanPublishConfig, 0);
 
@@ -1441,12 +1443,12 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFSend(const WiFiPAF::WiFiPAFSession &
     const uint8_t * originalPayload   = msgBuf->Start();
     const uint16_t originalPayloadLen = static_cast<uint16_t>(msgBuf->DataLength());
 
-    printf("Original payload: ");
-    for (size_t i = 0; i < originalPayloadLen; i++)
-    {
-        printf("%02X ", originalPayload[i]);
-    }
-    printf("\n");
+    // printf("Original payload: ");
+    // for (size_t i = 0; i < originalPayloadLen; i++)
+    // {
+    //     printf("%02X ", originalPayload[i]);
+    // }
+    // printf("\n");
 
     // Create a WFA SSI structure for follow-up messages
     // WFA SSI format: [WFA OUI (3 bytes)] + [Protocol (1 byte)] + [Payload]

@@ -153,7 +153,7 @@ private:
     SequenceNumber_t mReceiveWindowMaxSize;
 
     // Maximum number of retransmission attempts before closing the connection
-    static constexpr uint8_t kMaxRetransmissionAttempts = 3;
+    static constexpr uint8_t kMaxRetransmissionAttempts = 5;
     
     // Counter for retransmission attempts
     uint8_t mRetransmissionCount = 0;

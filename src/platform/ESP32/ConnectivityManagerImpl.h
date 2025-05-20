@@ -200,6 +200,9 @@ private:
     CHIP_ERROR _WiFiPAFCancelSubscribe(uint32_t SubscribeId) { return CHIP_ERROR_NOT_IMPLEMENTED; }
     CHIP_ERROR _WiFiPAFCancelIncompleteSubscribe() { return CHIP_ERROR_NOT_IMPLEMENTED; }
     void _WiFiPafSetApFreq(const uint16_t freq) { ; }
+
+    bool _WiFiPAFResourceAvailable() { return true; };
+
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
 
     // ===== Members for internal use by the following friends.
