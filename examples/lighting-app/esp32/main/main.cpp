@@ -184,6 +184,11 @@ extern "C" void app_main()
     ESP_LOGI(TAG, "chip-esp32-light-example starting");
     ESP_LOGI(TAG, "==================================================");
 
+  
+    // set log level to warning for wifi and event tags
+   esp_log_level_set("wifi", ESP_LOG_WARN);
+    esp_log_level_set("event", ESP_LOG_WARN);
+
 #if CONFIG_ENABLE_CHIP_SHELL
 #if CONFIG_OPENTHREAD_CLI
     chip::RegisterOpenThreadCliCommands();
