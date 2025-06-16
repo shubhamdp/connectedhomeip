@@ -193,6 +193,7 @@ private:
     void StopSendAckTimer();              // Stop send-ack timer.
     void StopWaitResourceTimer();         // Stop wait-resource timer
     void StopRetransmitTimer();           // Stop retransmit timer.
+    CHIP_ERROR StartRetransmitTimer();    // Start retransmit timer.
 
     // Timer expired callbacks:
     static void HandleConnectTimeout(chip::System::Layer * systemLayer, void * appState);
