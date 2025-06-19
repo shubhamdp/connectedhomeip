@@ -979,7 +979,8 @@ CHIP_ERROR WiFiPAFEndPoint::Receive(PacketBufferHandle && data)
         {
             // It's likely a retransmission or old packet - handle directly
             ChipLogDetail(WiFiPAF, "WiFiPAF RECEIVE: Received old/retransmitted packet - processing directly");
-            return RxPacketProcess(std::move(data));
+            // return RxPacketProcess(std::move(data));
+            return CHIP_NO_ERROR; // No need to process, just return success
         }
     }
     else
@@ -994,7 +995,7 @@ CHIP_ERROR WiFiPAFEndPoint::Receive(PacketBufferHandle && data)
         // Offset is too big
         // => It may be the unexpected packet or duplicate packet => process directly
         ChipLogDetail(WiFiPAF, "WiFiPAF RECEIVE: Offset (%u) is too big - processing directly instead of dropping", offset);
-        return RxPacketProcess(std::move(data));
+        return CHIP_NO_ERROR;
     }
 
     // Save the packet to the reorder-queue

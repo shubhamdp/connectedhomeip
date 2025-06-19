@@ -1374,12 +1374,8 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args
     nanPublishConfig.ssi_len            = static_cast<uint16_t>(wfaSsiSize);
     nanPublishConfig.ttl                = CHIP_DEVICE_CONFIG_WIFIPAF_DISCOVERY_TIMEOUT_SECS;
     nanPublishConfig.usd_discovery_flag = 1;                                     // Enable USD
-    nanPublishConfig.usd_publish_config = DEFAULT_USD_PUBLISH_CFG(); // get_default_usd_publish_cfg(); // Use default USD config
-
-    nanPublishConfig.usd_publish_config.usd_chan_list     = chan_list;
-    nanPublishConfig.usd_publish_config.usd_chan_list_len = chan_list_len;
-
-    // nanPublishConfig.usd_publish_config.usd_default_channel = 6;
+    nanPublishConfig.usd_publish_config = esp_wifi_usd_get_default_publish_cfg();
+    nanPublishConfig.usd_publish_config.usd_default_channel = 6;
 
     uint32_t publish_id = esp_wifi_nan_publish_service(&nanPublishConfig, 0);
 
