@@ -47,7 +47,7 @@ follow these steps:
           $ cd ${HOME}/tools
           $ git clone --progress https://github.com/espressif/qemu.git qemu_esp32
           $ cd qemu_esp32
-          $ ./configure --target-list=xtensa-softmmu --enable-debug --enable-sanitizers --disable-strip --disable-user --disable-capstone    $ --disable-vnc --disable-sdl --disable-gtk
+          $ ./configure --target-list=xtensa-softmmu --enable-debug --enable-sanitizers --disable-strip --disable-user --disable-capstone --disable-vnc --disable-sdl --disable-gtk
           $ make -j8
           $ export QEMU_ESP32=${HOME}/tools/qemu_esp32/xtensa-softmmu/qemu-system-xtensa
 
