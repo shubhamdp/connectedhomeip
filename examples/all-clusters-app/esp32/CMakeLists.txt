@@ -49,12 +49,19 @@ idf_build_set_property(COMPILE_OPTIONS "-Wno-error=maybe-uninitialized" APPEND)
 flashing_script()
 
 if (CONFIG_ENABLE_PW_RPC)
+
+set(dir_pw_third_party_freertos "${IDF_PATH}/components/freertos/FreeRTOS-Kernel-SMP/include" CACHE PATH "" FORCE)
+set(pw_third_party_freertos_CONFIG "${IDF_PATH}/components/freertos/config/${CONFIG_IDF_TARGET_ARCH}" CACHE PATH "" FORCE)
+set(pw_third_party_freertos_PORT "${IDF_PATH}/components/freertos/FreeRTOS-Kernel-SMP/portable/${CONFIG_IDF_TARGET_ARCH}" CACHE PATH "" FORCE)
+
 get_filename_component(CHIP_ROOT ./third_party/connectedhomeip REALPATH)
 include(third_party/connectedhomeip/third_party/pigweed/repo/pw_build/pigweed.cmake)
 include($ENV{PW_ROOT}/pw_assert/backend.cmake)
 include($ENV{PW_ROOT}/pw_log/backend.cmake)
 include($ENV{PW_ROOT}/pw_sys_io/backend.cmake)
 include($ENV{PW_ROOT}/pw_trace/backend.cmake)
+include($ENV{PW_ROOT}/pw_interrupt/backend.cmake)
+include($ENV{PW_ROOT}/pw_sync/backend.cmake)
 
 pw_set_module_config(pw_rpc_CONFIG pw_rpc.disable_global_mutex_config)
 
@@ -65,6 +72,8 @@ pw_set_backend(pw_sys_io pw_sys_io.esp32)
 pw_set_backend(pw_trace pw_trace_tokenized)
 pw_set_backend(pw_sync.interrupt_spin_lock pw_sync_freertos.interrupt_spin_lock)
 pw_set_backend(pw_interrupt.context pw_interrupt_freertos.context)
+pw_set_backend(pw_interrupt.context pw_interrupt_freertos.context)
+pw_set_backend(pw_sync.interrupt_spin_lock pw_sync_freertos.interrupt_spin_lock)
 
 add_subdirectory(third_party/connectedhomeip/third_party/pigweed/repo)
 add_subdirectory(third_party/connectedhomeip/third_party/nanopb/repo)
