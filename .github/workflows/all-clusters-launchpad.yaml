@@ -1,0 +1,118 @@
+# Copyright (c) 2025 Project CHIP Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This workflow builds all-clusters-app for ESP32 variants, stores artifacts and deploys them to GitHub Pages.
+# Generates ESP Launchpad configuration file and HTML tree view for easy access.
+
+name: Build All Clusters App for ESP Launchpad
+
+on:
+  schedule:
+    # Run every Saturday at 3:00 AM UTC
+    - cron: '0 3 * * 6'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CHIP_NO_LOG_TIMESTAMPS: true
+
+jobs:
+  build-all-clusters:
+    name: Build All Clusters App
+    runs-on: ubuntu-latest
+    if: github.actor != 'restyled-io[bot]'
+
+    container:
+      image: ghcr.io/project-chip/chip-build-esp32:175
+
+    strategy:
+      matrix:
+        targets:
+          - {chip: esp32, prefix: wifi_matter}
+          - {chip: esp32c3, prefix: wifi_matter}
+          - {chip: esp32c6, prefix: wifi_matter}
+          - {chip: esp32h2, prefix: thread_matter}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: project-chip/connectedhomeip
+          path: connectedhomeip
+
+      - name: Checkout submodules
+        uses: ./.github/actions/checkout-submodules-and-bootstrap
+        with:
+          platform: esp32
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      - name: Build All Clusters App for ${{ matrix.targets.chip }}
+        run: scripts/examples/esp_example.sh all-clusters-app sdkconfig.defaults ${{ matrix.targets.chip }}
+
+      - name: Generate merged binary for ESP Launchpad
+        run: |
+          cd examples/all-clusters-app/esp32/build
+          OUT_BIN="$GITHUB_WORKSPACE/artifacts/${{ matrix.targets.chip }}-${{ matrix.targets.prefix }}-chip-all-clusters-app.bin"
+          esptool.py --chip ${{ matrix.targets.chip }} merge_bin @flash_args -o $OUT_BIN
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: build-images-${{ matrix.targets.chip }}-${{ matrix.targets.prefix }}-chip-all-clusters-app.bin
+          path: artifacts/
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: build-all-clusters
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: build-images-*
+          path: launchpad_artifacts/
+          merge-multiple: true
+
+      - name: Generate ESP Launchpad configuration
+        run: |
+          cd artifacts/
+          tree -H '.' -L 1 --noreport -T 'All Clusters App Artifacts' -shi --charset utf-8 -I "index.html" -o index.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact to Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: artifacts/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
