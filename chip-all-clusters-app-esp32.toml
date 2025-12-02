@@ -1,0 +1,17 @@
+esp_toml_version = 1.0
+
+firmware_images_url = "https://shubhamdp.github.io/connectedhomeip/"
+
+supported_apps = ["wifi_matter_all_clusters", "thread_matter_all_clusters"]
+
+[wifi_matter_all_clusters]
+chipsets = ["ESP32", "ESP32C3", "ESP32C6"]
+image.esp32 = "esp32-wifi_matter-chip-all-clusters-app.bin"
+image.esp32c3 = "esp32c3-wifi_matter-chip-all-clusters-app.bin"
+image.esp32c6 = "esp32c6-wifi_matter-chip-all-clusters-app.bin"
+readme.text = "https://raw.githubusercontent.com/project-chip/connectedhomeip/master/examples/all-clusters-app/README.md"
+
+[thread_matter_all_clusters]
+chipsets = ["ESP32H2"]
+image.esp32h2 = "esp32h2-thread_matter-chip-all-clusters-app.bin"
+readme.text = "https://raw.githubusercontent.com/project-chip/connectedhomeip/master/examples/all-clusters-app/README.md"
