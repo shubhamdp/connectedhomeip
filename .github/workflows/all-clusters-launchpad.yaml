@@ -59,7 +59,7 @@ jobs:
           path: connectedhomeip
 
       - name: Checkout submodules
-        uses: ./.github/actions/checkout-submodules-and-bootstrap
+        uses: connectedhomeip/.github/actions/checkout-submodules-and-bootstrap
         with:
           platform: esp32
 
