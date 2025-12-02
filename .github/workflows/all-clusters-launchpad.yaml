@@ -71,7 +71,7 @@ jobs:
 
       - name: Generate merged binary for ESP Launchpad
         run: |
-          source $IDF_PATH/export.sh
+          . $IDF_PATH/export.sh
           cd examples/all-clusters-app/esp32/build
           OUT_BIN="$GITHUB_WORKSPACE/artifacts/${{ matrix.targets.chip }}-${{ matrix.targets.prefix }}-chip-all-clusters-app.bin"
           esptool.py --chip ${{ matrix.targets.chip }} merge_bin @flash_args -o $OUT_BIN
