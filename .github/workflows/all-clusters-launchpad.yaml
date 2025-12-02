@@ -61,6 +61,7 @@ jobs:
         uses: ./.github/actions/checkout-submodules-and-bootstrap
         with:
           platform: esp32
+          bootstrap-log-name: bootstrap-logs-${{ github.job }}-${{ matrix.targets.chip }}
 
       - name: Create artifacts directory
         run: mkdir -p artifacts
@@ -96,7 +97,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: build-images-*
-          path: launchpad_artifacts/
+          path: artifacts/
           merge-multiple: true
 
       - name: Generate ESP Launchpad configuration
