@@ -56,10 +56,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           repository: project-chip/connectedhomeip
-          path: connectedhomeip
 
       - name: Checkout submodules
-        uses: connectedhomeip/.github/actions/checkout-submodules-and-bootstrap
+        uses: ./.github/actions/checkout-submodules-and-bootstrap
         with:
           platform: esp32
 
