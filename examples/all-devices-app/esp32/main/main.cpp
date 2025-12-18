@@ -16,6 +16,8 @@
  *    limitations under the License.
  */
 
+#include <string>
+
 #include <app/persistence/DefaultAttributePersistenceProvider.h>
 #include <app/server/Dnssd.h>
 #include <app/server/Server.h>
@@ -56,12 +58,19 @@
 #include <DeviceInfoProviderImpl.h>
 #endif // CONFIG_ENABLE_ESP32_DEVICE_INFO_PROVIDER
 
+#if CONFIG_ENABLE_CHIP_SHELL
+#include <shell_extension/launch.h>
+#include <DeviceShellCommands.h>
+#endif // CONFIG_ENABLE_CHIP_SHELL
+
 using namespace chip;
 using namespace chip::app;
 using namespace chip::DeviceLayer;
 using namespace chip::Credentials;
 
 static const char TAG[] = "all-devices-app";
+
+static std::string sDeviceType = "contact-sensor";
 
 namespace {
 
@@ -191,7 +200,8 @@ chip::app::DataModel::Provider * PopulateCodeDrivenDataModelProvider(PersistentS
     }
 
     // Default to contact-sensor device type
-    const char * deviceType = CONFIG_ALL_DEVICES_DEVICE_TYPE;
+    const char * deviceType = sDeviceType.c_str();
+    printf("trying to create device of type: %s\n", deviceType);
     gConstructedDevice      = DeviceFactory::GetInstance().Create(deviceType);
     if (gConstructedDevice == nullptr)
     {
@@ -310,5 +320,23 @@ extern "C" void app_main()
         return;
     }
 
-    chip::DeviceLayer::PlatformMgr().ScheduleWork(InitServer, reinterpret_cast<intptr_t>(nullptr));
+#if CONFIG_ENABLE_CHIP_SHELL
+    chip::LaunchShell();
+    chip::Shell::DeviceCommands::GetInstance().Register();
+#endif // CONFIG_ENABLE_CHIP_SHELL
+
+    ESP_LOGI(TAG, "==================================================");
+    ESP_LOGI(TAG, "try cmd: matter ddevice set <device-type>");
+    ESP_LOGI(TAG, "==================================================");
+}
+
+void InitServerWithDeviceType(std::string deviceType)
+{
+    // Set the device type (store the actual string, not a pointer to temporary)
+    sDeviceType = std::move(deviceType);
+
+    printf("received device type: %s\n", sDeviceType.c_str());
+
+    // Init the server
+    PlatformMgr().ScheduleWork(InitServer, reinterpret_cast<intptr_t>(nullptr));
 }
