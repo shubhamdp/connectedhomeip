@@ -154,7 +154,7 @@ private:
 
     // Maximum number of retransmission attempts before closing the connection
     static constexpr uint8_t kMaxRetransmissionAttempts = 5;
-    
+
     // Counter for retransmission attempts
     uint8_t mRetransmissionCount = 0;
 
@@ -212,7 +212,7 @@ private:
     void ClearAll();
 
     // Retransmission functionality
-    CHIP_ERROR RetransmitLastPacket();    // Retransmit the last sent packet
+    CHIP_ERROR RetransmitLastPacket(); // Retransmit the last sent packet
 };
 
 } /* namespace WiFiPAF */

@@ -28,7 +28,12 @@
 #include <lib/support/CodeUtils.h>
 #include <lib/support/SafeInt.h>
 
+#include <mbedtls/version.h>
+#if (MBEDTLS_VERSION_NUMBER >= 0x04000000)
+#include <mbedtls/private/ecp.h>
+#else
 #include <mbedtls/ecp.h>
+#endif
 #include <mbedtls/oid.h>
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_csr.h>
@@ -64,7 +69,12 @@ CHIP_ERROR VerifyCertificateSigningRequest(const uint8_t * csr_buf, size_t csr_l
 
     // Verify the signature algorithm and public key type
     VerifyOrExit(csr.CHIP_CRYPTO_PAL_PRIVATE(sig_md) == MBEDTLS_MD_SHA256, error = CHIP_ERROR_UNSUPPORTED_SIGNATURE_TYPE);
+#if (MBEDTLS_VERSION_NUMBER >= 0x04000000)
+    // In mbedTLS 4.0, sig_pk type changed from mbedtls_pk_type_t to mbedtls_pk_sigalg_t
+    VerifyOrExit(csr.CHIP_CRYPTO_PAL_PRIVATE(sig_pk) == MBEDTLS_PK_SIGALG_ECDSA, error = CHIP_ERROR_WRONG_KEY_TYPE);
+#else
     VerifyOrExit(csr.CHIP_CRYPTO_PAL_PRIVATE(sig_pk) == MBEDTLS_PK_ECDSA, error = CHIP_ERROR_WRONG_KEY_TYPE);
+#endif
 
     keypair = mbedtls_pk_ec(csr.CHIP_CRYPTO_PAL_PRIVATE_X509(pk));
 

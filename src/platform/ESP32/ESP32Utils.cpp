@@ -97,12 +97,17 @@ CHIP_ERROR ESP32Utils::StartWiFiLayer(void)
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
         /* Start USD-NAN Discovery */
-        wifi_nan_config_t nanConfig = WIFI_USD_NAN_CONFIG_DEFAULT();
-        // esp_wifi_nan_start() also calls esp_wifi_start() so we don't need to call this function again
-        err = esp_wifi_nan_start(&nanConfig);
+        // In ESP-IDF v6.0, NAN is started by setting mode to WIFI_MODE_NAN and calling esp_wifi_start()
+        err = esp_wifi_set_mode(WIFI_MODE_NAN);
         if (err != ESP_OK)
         {
-            ChipLogError(DeviceLayer, "esp_wifi_nan_start() failed: %s", esp_err_to_name(err));
+            ChipLogError(DeviceLayer, "esp_wifi_set_mode(WIFI_MODE_NAN) failed: %s", esp_err_to_name(err));
+            return ESP32Utils::MapError(err);
+        }
+        err = esp_wifi_start();
+        if (err != ESP_OK)
+        {
+            ChipLogError(DeviceLayer, "esp_wifi_start() failed for NAN: %s", esp_err_to_name(err));
             return ESP32Utils::MapError(err);
         }
 #else  // !CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF

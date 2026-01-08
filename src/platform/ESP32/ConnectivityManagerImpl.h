@@ -158,7 +158,7 @@ private:
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
     uint8_t mPeerInstanceId = 0;
-    uint8_t mPeerMac[6] = {0};
+    uint8_t mPeerMac[6]     = { 0 };
 
     WiFiPAF::WiFiPAFLayer * pmWiFiPAF;
     WiFiPAF::WiFiPAFEndPoint mWiFiPAFEndPoint;
@@ -173,7 +173,10 @@ private:
 
     // We do not support PAF discovery and subscribe for now
     CHIP_ERROR _WiFiPAFSubscribe(const uint16_t & connDiscriminator, void * appState, OnConnectionCompleteFunct onSuccess,
-                                 OnConnectionErrorFunct onError) { return CHIP_ERROR_NOT_IMPLEMENTED; }
+                                 OnConnectionErrorFunct onError)
+    {
+        return CHIP_ERROR_NOT_IMPLEMENTED;
+    }
     CHIP_ERROR _WiFiPAFCancelSubscribe(uint32_t SubscribeId) { return CHIP_ERROR_NOT_IMPLEMENTED; }
     CHIP_ERROR _WiFiPAFCancelIncompleteSubscribe() { return CHIP_ERROR_NOT_IMPLEMENTED; }
     void _WiFiPafSetApFreq(const uint16_t freq) { ; }
@@ -194,7 +197,6 @@ public:
     bool IsWiFiManagementStarted() { return true; }
     void StartWiFiManagement() {}
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
-
 };
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFI

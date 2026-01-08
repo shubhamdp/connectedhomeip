@@ -87,7 +87,8 @@ public:
                              pElmInfo->peer_addr[2], pElmInfo->peer_addr[3], pElmInfo->peer_addr[4], pElmInfo->peer_addr[5]);
                 ChipLogError(WiFiPAF, "InMac: [%02x:%02x:%02x:%02x:%02x:%02x]", pInInfo->peer_addr[0], pInInfo->peer_addr[1],
                              pInInfo->peer_addr[2], pInInfo->peer_addr[3], pInInfo->peer_addr[4], pInInfo->peer_addr[5]);
-                ChipLogError(WiFiPAF, "nodeId: [0x" ChipLogFormatX64 ", 0x" ChipLogFormatX64 "]", ChipLogValueX64(pElmInfo->nodeId), ChipLogValueX64(pInInfo->nodeId));
+                ChipLogError(WiFiPAF, "nodeId: [0x" ChipLogFormatX64 ", 0x" ChipLogFormatX64 "]", ChipLogValueX64(pElmInfo->nodeId),
+                             ChipLogValueX64(pInInfo->nodeId));
                 ChipLogError(WiFiPAF, "discriminator: [%u, %u]", pElmInfo->discriminator, pInInfo->discriminator);
             }
 #endif
@@ -268,15 +269,14 @@ bool WiFiPAFLayer::OnWiFiPAFMessageReceived(WiFiPAFSession & RxInfo, System::Pac
 {
     WiFiPAFEndPoint * endPoint = sWiFiPAFEndPointPool.Find(reinterpret_cast<WIFIPAF_CONNECTION_OBJECT>(&RxInfo));
     VerifyOrReturnError(endPoint != nullptr, false, ChipLogError(WiFiPAF, "No endpoint for received indication"));
-    
+
     // Log packet reception with detailed information
-    ChipLogError(WiFiPAF, "WiFiPAF RECEIVED PACKET: len=%u, session_id=%" PRIu32 ", peer_id=%" PRIu32 ", peer_mac=%02x:%02x:%02x:%02x:%02x:%02x",
-                   static_cast<unsigned int>(msg->DataLength()), 
-                   RxInfo.id, 
-                   RxInfo.peer_id,
-                   RxInfo.peer_addr[0], RxInfo.peer_addr[1], RxInfo.peer_addr[2],
-                   RxInfo.peer_addr[3], RxInfo.peer_addr[4], RxInfo.peer_addr[5]);
-    
+    ChipLogError(WiFiPAF,
+                 "WiFiPAF RECEIVED PACKET: len=%u, session_id=%" PRIu32 ", peer_id=%" PRIu32
+                 ", peer_mac=%02x:%02x:%02x:%02x:%02x:%02x",
+                 static_cast<unsigned int>(msg->DataLength()), RxInfo.id, RxInfo.peer_id, RxInfo.peer_addr[0], RxInfo.peer_addr[1],
+                 RxInfo.peer_addr[2], RxInfo.peer_addr[3], RxInfo.peer_addr[4], RxInfo.peer_addr[5]);
+
     RxInfo.role    = endPoint->mSessionInfo.role;
     CHIP_ERROR err = endPoint->Receive(std::move(msg));
     VerifyOrReturnError(err == CHIP_NO_ERROR, false,

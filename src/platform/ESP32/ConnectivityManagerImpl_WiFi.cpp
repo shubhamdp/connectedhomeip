@@ -41,6 +41,7 @@
 #include "esp_nan.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
+#include "esp_private/wifi.h"  // For ESP-IDF v6.0 internal NAN APIs
 
 #include <lwip/dns.h>
 #include <lwip/ip_addr.h>
@@ -346,7 +347,7 @@ CHIP_ERROR ConnectivityManagerImpl::InitWiFi()
 
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
     pmWiFiPAF = &WiFiPAF::WiFiPAFLayer::GetWiFiPAFLayer();
-    pmWiFiPAF->Init(&DeviceLayer::SystemLayer());
+    (void) pmWiFiPAF->Init(&DeviceLayer::SystemLayer());
 #endif // CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
 
     mFlags.SetRaw(0);
@@ -434,7 +435,7 @@ static CHIP_ERROR InitiateTransport(const wifi_event_nan_receive_t & event)
     TxInfo.id      = static_cast<uint32_t>(event.inst_id);
     TxInfo.peer_id = static_cast<uint32_t>(event.peer_inst_id);
     memcpy(TxInfo.peer_addr, event.peer_if_mac, sizeof(TxInfo.peer_addr));
-    DeviceLayer::GetCommissionableDataProvider()->GetSetupDiscriminator(TxInfo.discriminator);
+    (void) DeviceLayer::GetCommissionableDataProvider()->GetSetupDiscriminator(TxInfo.discriminator);
     TxInfo.role = WiFiPAF::WiFiPafRole::kWiFiPafRole_Publisher;
 
     WiFiPAFSession sessionInfo  = { .id = TxInfo.id };
@@ -791,7 +792,6 @@ void ConnectivityManagerImpl::OnStationDisconnected()
     switch (reason)
     {
     case WIFI_REASON_ASSOC_TOOMANY:
-    case WIFI_REASON_NOT_ASSOCED:
     case WIFI_REASON_ASSOC_NOT_AUTHED:
     case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
     case WIFI_REASON_GROUP_CIPHER_INVALID:
@@ -806,7 +806,6 @@ void ConnectivityManagerImpl::OnStationDisconnected()
             delegate->OnAssociationFailureDetected(associationFailureCause, reason);
         }
         break;
-    case WIFI_REASON_NOT_AUTHED:
     case WIFI_REASON_MIC_FAILURE:
     case WIFI_REASON_IE_IN_4WAY_DIFFERS:
     case WIFI_REASON_INVALID_RSN_IE_CAP:
@@ -830,7 +829,6 @@ void ConnectivityManagerImpl::OnStationDisconnected()
     case WIFI_REASON_AUTH_EXPIRE:
     case WIFI_REASON_AUTH_LEAVE:
     case WIFI_REASON_ASSOC_LEAVE:
-    case WIFI_REASON_ASSOC_EXPIRE:
         break;
 
     default:
@@ -1055,7 +1053,7 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args
     // TODO: args.freq_list and args.freq_list_len should be used to set channel list
 
     // Default channel if no frequency list is provided
-    uint8_t chan_list[]   = {6} ;
+    uint8_t chan_list[]   = { 6 };
     uint8_t chan_list_len = sizeof(chan_list);
 
     static uint8_t static_ssi[] = { 0x00, 0x00, 0x0F, 0x00, 0x01, 0x80, 0xF1, 0xFF };
@@ -1098,11 +1096,12 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args
     nanPublishConfig.ssi                = reinterpret_cast<uint8_t *>(completeWfaSsi);
     nanPublishConfig.ssi_len            = static_cast<uint16_t>(wfaSsiSize);
     nanPublishConfig.ttl                = CHIP_DEVICE_CONFIG_WIFIPAF_DISCOVERY_TIMEOUT_SECS;
-    nanPublishConfig.usd_discovery_flag = 1;                                     // Enable USD
-    nanPublishConfig.usd_publish_config = esp_wifi_usd_get_default_publish_cfg();
+    nanPublishConfig.usd_discovery_flag = 1; // Enable USD
+    // Initialize USD config with defaults
     nanPublishConfig.usd_publish_config.usd_default_channel = 6;
 
-    uint32_t publish_id = esp_wifi_nan_publish_service(&nanPublishConfig, 0);
+    uint8_t publish_id_u8 = 0;
+    esp_err_t espErr = esp_nan_internal_publish_service(&nanPublishConfig, &publish_id_u8, false);
 
     // Free memory allocated for WFA SSI
     if (completeWfaSsi != nullptr)
@@ -1111,12 +1110,13 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args
         completeWfaSsi = nullptr;
     }
 
-    if (publish_id == 0)
+    if (espErr != ESP_OK || publish_id_u8 == 0)
     {
-        ChipLogError(DeviceLayer, "Publishing to %s failed", nanPublishConfig.service_name);
+        ChipLogError(DeviceLayer, "Publishing to %s failed: %s", nanPublishConfig.service_name, esp_err_to_name(espErr));
         return CHIP_ERROR_INTERNAL;
     }
 
+    uint32_t publish_id = static_cast<uint32_t>(publish_id_u8);
     ChipLogProgress(DeviceLayer, "Publishing to %s with ID %" PRIu32, nanPublishConfig.service_name, publish_id);
     args.publish_id = publish_id;
 
@@ -1132,10 +1132,11 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFPublish(WiFiPAFAdvertiseParam & args
 
 CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFCancelPublish(uint32_t publishId)
 {
-    esp_err_t err = esp_wifi_nan_cancel_publish(static_cast<uint8_t>(publishId));
+    uint8_t id = static_cast<uint8_t>(publishId);
+    esp_err_t err = esp_nan_internal_publish_service(nullptr, &id, true);
     if (err != ESP_OK)
     {
-        ChipLogError(DeviceLayer, "Failed to cancel publish with ID %" PRIu32, publishId);
+        ChipLogError(DeviceLayer, "Failed to cancel publish with ID %" PRIu32 ": %s", publishId, esp_err_to_name(err));
         return CHIP_ERROR_INTERNAL;
     }
     return CHIP_NO_ERROR;
@@ -1206,7 +1207,8 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFSend(const WiFiPAF::WiFiPAFSession &
     followupParams.ssi_len = static_cast<uint16_t>(wfaSsiSize);
     followupParams.ssi     = completeWfaSsi;
 
-    esp_err_t err = esp_wifi_nan_send_message(&followupParams);
+    uint32_t context = 0;
+    esp_err_t err = esp_nan_internal_send_followup(&followupParams, &context);
 
     // Free the allocated WFA SSI memory
     if (completeWfaSsi != nullptr)
@@ -1217,7 +1219,7 @@ CHIP_ERROR ConnectivityManagerImpl::_WiFiPAFSend(const WiFiPAF::WiFiPAFSession &
 
     if (err != ESP_OK)
     {
-        ChipLogError(DeviceLayer, "Failed to send followup with ID %u, err: %d", followupParams.inst_id, err);
+        ChipLogError(DeviceLayer, "Failed to send followup with ID %u, err: %s", followupParams.inst_id, esp_err_to_name(err));
     }
     else
     {

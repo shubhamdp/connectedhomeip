@@ -89,12 +89,12 @@ CHIP_ERROR WiFiPAFBase::WiFiPAFMessageReceived(WiFiPAFSession & RxInfo, PacketBu
             The packet is from the wrong sender
         */
         ChipLogError(Inet, "WiFi-PAF: packet from unexpected node:");
-        ChipLogError(Inet, "session: [id: %" PRIu32 ", peer_id: %" PRIu32 ", [%02x:%02x:%02x:%02x:%02x:%02x]", pPafInfo->id, pPafInfo->peer_id,
-                     pPafInfo->peer_addr[0], pPafInfo->peer_addr[1], pPafInfo->peer_addr[2], pPafInfo->peer_addr[3],
-                     pPafInfo->peer_addr[4], pPafInfo->peer_addr[5]);
-        ChipLogError(Inet, "pkt: [id: %" PRIu32 ", peer_id: %" PRIu32 ", [%02x:%02x:%02x:%02x:%02x:%02x]", RxInfo.id, RxInfo.peer_id,
-                     RxInfo.peer_addr[0], RxInfo.peer_addr[1], RxInfo.peer_addr[2], RxInfo.peer_addr[3], RxInfo.peer_addr[4],
-                     RxInfo.peer_addr[5]);
+        ChipLogError(Inet, "session: [id: %" PRIu32 ", peer_id: %" PRIu32 ", [%02x:%02x:%02x:%02x:%02x:%02x]", pPafInfo->id,
+                     pPafInfo->peer_id, pPafInfo->peer_addr[0], pPafInfo->peer_addr[1], pPafInfo->peer_addr[2],
+                     pPafInfo->peer_addr[3], pPafInfo->peer_addr[4], pPafInfo->peer_addr[5]);
+        ChipLogError(Inet, "pkt: [id: %" PRIu32 ", peer_id: %" PRIu32 ", [%02x:%02x:%02x:%02x:%02x:%02x]", RxInfo.id,
+                     RxInfo.peer_id, RxInfo.peer_addr[0], RxInfo.peer_addr[1], RxInfo.peer_addr[2], RxInfo.peer_addr[3],
+                     RxInfo.peer_addr[4], RxInfo.peer_addr[5]);
         return CHIP_ERROR_INCORRECT_STATE;
     }
     HandleMessageReceived(Transport::PeerAddress(Transport::Type::kWiFiPAF, pPafInfo->nodeId), std::move(buffer));

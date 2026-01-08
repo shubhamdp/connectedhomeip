@@ -157,8 +157,8 @@ static void InitServer(intptr_t context)
 #endif
 
     ConnectivityManager::WiFiPAFAdvertiseParam args;
-    args.enable  = true;
-    ConnectivityMgr().WiFiPAFPublish(args);
+    args.enable = true;
+    (void) ConnectivityMgr().WiFiPAFPublish(args);
 }
 
 extern "C" void app_main()
@@ -184,9 +184,8 @@ extern "C" void app_main()
     ESP_LOGI(TAG, "chip-esp32-light-example starting");
     ESP_LOGI(TAG, "==================================================");
 
-  
     // set log level to warning for wifi and event tags
-   esp_log_level_set("wifi", ESP_LOG_WARN);
+    esp_log_level_set("wifi", ESP_LOG_WARN);
     esp_log_level_set("event", ESP_LOG_WARN);
 
 #if CONFIG_ENABLE_CHIP_SHELL
@@ -222,7 +221,7 @@ extern "C" void app_main()
 
     SetDeviceAttestationCredentialsProvider(get_dac_provider());
 
-    chip::DeviceLayer::PlatformMgr().ScheduleWork(InitServer, reinterpret_cast<intptr_t>(nullptr));
+    (void) chip::DeviceLayer::PlatformMgr().ScheduleWork(InitServer, reinterpret_cast<intptr_t>(nullptr));
 
     error = GetAppTask().StartAppTask();
     if (error != CHIP_NO_ERROR)

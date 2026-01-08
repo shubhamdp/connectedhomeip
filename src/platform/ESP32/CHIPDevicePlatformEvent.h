@@ -89,7 +89,8 @@ struct ChipDevicePlatformEvent final
                 wifi_event_ap_probe_req_rx_t WiFiApProbeReqRecved;
 #if CHIP_DEVICE_CONFIG_ENABLE_WIFIPAF
                 // This event is when subscriber a message to us
-                struct {
+                struct
+                {
                     // ssi in here is a FAM so we need to keep a copy of it
                     wifi_event_nan_receive_t nanReceive;
                     uint8_t * ssi;

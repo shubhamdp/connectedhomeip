@@ -29,11 +29,6 @@ set(EXTRA_COMPONENT_DIRS
     "${CMAKE_CURRENT_LIST_DIR}/third_party/connectedhomeip/examples/common"
 )
 
-if(${IDF_TARGET} STREQUAL "esp32")
-    list(APPEND EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/third_party/connectedhomeip/examples/common/m5stack-tft/repo/components")
-endif()
-
-
 project(chip-lighting-app)
 
 # WARNING: This is just an example for using key for decrypting the encrypted OTA image
@@ -57,6 +52,9 @@ idf_build_set_property(COMPILE_OPTIONS "-Wno-error=maybe-uninitialized" APPEND)
 
 #For the H2, -Werror=uninitialized will cause an error in "src/lib/support/LambdaBridge.h"
 idf_build_set_property(COMPILE_OPTIONS "-Wno-error=uninitialized" APPEND)
+
+# Temporarily disable -Werror for ESP-IDF v6.0 migration
+idf_build_set_property(COMPILE_OPTIONS "-Wno-error" APPEND)
 
 flashing_script()
 

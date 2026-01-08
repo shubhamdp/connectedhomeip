@@ -17,6 +17,14 @@
 import("//build_overrides/pigweed.gni")
 chip_device_platform = "esp32"
 
+# Disable treating warnings as errors for ESP-IDF v6.0 migration
+treat_warnings_as_errors = false
+
+# Use PSA Crypto backend for ESP-IDF v6.0 (mbedTLS v4.0)
+# PSA Crypto is the primary interface in mbedTLS v4.0
+chip_crypto = "psa"
+chip_crypto_psa_spake2p = true
+
 chip_project_config_include = ""
 chip_system_project_config_include = ""
 chip_ble_project_config_include = ""

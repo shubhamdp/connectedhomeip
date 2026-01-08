@@ -23,6 +23,11 @@
 #include <mbedtls/error.h>
 #include <mbedtls/version.h>
 
+// In mbedTLS 4.0.0 (ESP-IDF v6.0), some headers and APIs moved to private headers
+#if (MBEDTLS_VERSION_NUMBER >= 0x04000000)
+#include <mbedtls/private/pk_private.h>
+#endif
+
 namespace chip {
 namespace Crypto {
 

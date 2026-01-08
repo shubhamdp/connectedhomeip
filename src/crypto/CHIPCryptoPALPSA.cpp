@@ -35,8 +35,17 @@
 
 #include <psa/crypto.h>
 
+#include <mbedtls/version.h>
+// Only need ECP/bignum headers when using legacy SPAKE2+ implementation
+#if !CHIP_CRYPTO_PSA_SPAKE2P
+#if (MBEDTLS_VERSION_NUMBER >= 0x04000000)
+#include <mbedtls/private/bignum.h>
+#include <mbedtls/private/ecp.h>
+#else
 #include <mbedtls/bignum.h>
 #include <mbedtls/ecp.h>
+#endif
+#endif // !CHIP_CRYPTO_PSA_SPAKE2P
 #include <mbedtls/error.h>
 #include <mbedtls/x509_csr.h>
 
