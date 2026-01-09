@@ -625,8 +625,6 @@ void ConnectivityManagerImpl::OnStationDisconnected()
     switch (reason)
     {
     case WIFI_REASON_ASSOC_TOOMANY:
-    case WIFI_REASON_NOT_ASSOCED:
-    case WIFI_REASON_ASSOC_NOT_AUTHED:
     case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
     case WIFI_REASON_GROUP_CIPHER_INVALID:
     case WIFI_REASON_UNSUPP_RSN_IE_VERSION:
@@ -640,7 +638,6 @@ void ConnectivityManagerImpl::OnStationDisconnected()
             delegate->OnAssociationFailureDetected(associationFailureCause, reason);
         }
         break;
-    case WIFI_REASON_NOT_AUTHED:
     case WIFI_REASON_MIC_FAILURE:
     case WIFI_REASON_IE_IN_4WAY_DIFFERS:
     case WIFI_REASON_INVALID_RSN_IE_CAP:
@@ -664,7 +661,6 @@ void ConnectivityManagerImpl::OnStationDisconnected()
     case WIFI_REASON_AUTH_EXPIRE:
     case WIFI_REASON_AUTH_LEAVE:
     case WIFI_REASON_ASSOC_LEAVE:
-    case WIFI_REASON_ASSOC_EXPIRE:
         break;
 
     default:
