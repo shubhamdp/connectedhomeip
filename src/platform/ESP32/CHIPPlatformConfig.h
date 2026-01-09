@@ -51,6 +51,19 @@
 
 // ==================== Security Adaptations ====================
 
+// For ESP-IDF v6.0 (mbedTLS v4.0) with PSA Crypto backend,
+// psa_hash_operation_t is larger than the default context size
+#include <mbedtls/version.h>
+#if (MBEDTLS_VERSION_NUMBER >= 0x04000000)
+#include <psa/crypto.h>
+#ifndef CHIP_CONFIG_SHA256_CONTEXT_SIZE
+#define CHIP_CONFIG_SHA256_CONTEXT_SIZE sizeof(psa_hash_operation_t)
+#endif
+#ifndef CHIP_CONFIG_SHA256_CONTEXT_ALIGN
+#define CHIP_CONFIG_SHA256_CONTEXT_ALIGN psa_hash_operation_t
+#endif
+#endif
+
 // ==================== Kconfig Overrides ====================
 
 // The following values are configured via the ESP-IDF Kconfig mechanism.

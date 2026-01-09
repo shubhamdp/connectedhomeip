@@ -78,6 +78,12 @@ chip_gn_arg_append("esp32_cxx"             "\"${CMAKE_CXX_COMPILER}\"")
 chip_gn_arg_append("esp32_cpu"             "\"esp32\"")
 chip_gn_arg_bool("is_debug"                ${is_debug})
 
+# Use PSA Crypto backend for esp-idf v6.0 and onwards
+# esp-idf v6.0 and onwards migrated to mbedTLS 4.x where PSA is the crypto backend primary interface
+if (IDF_VERSION_MAJOR GREATER_EQUAL 6)
+    chip_gn_arg_append("chip_crypto" "\"psa\"")
+endif()
+
 if (CONFIG_CHIP_CONFIG_IM_PRETTY_PRINT)
     chip_gn_arg_bool("enable_im_pretty_print" "true")
 endif()
