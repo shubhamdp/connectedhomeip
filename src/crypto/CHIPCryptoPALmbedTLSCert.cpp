@@ -37,8 +37,70 @@
 #include <mbedtls/x509_crt.h>
 #endif // defined(MBEDTLS_X509_CRT_PARSE_C)
 
+#if (MBEDTLS_VERSION_NUMBER >= 0x04000000)
+#include <psa/crypto.h>
+#endif // (MBEDTLS_VERSION_NUMBER >= 0x04000000)
+
 namespace chip {
 namespace Crypto {
+
+namespace {
+
+/**
+ * @brief Extract P256 public key from an mbedtls_pk_context
+ *
+ * This helper function handles the version differences between mbedTLS < 4.0 and >= 4.0.
+ * In mbedTLS 4.0+, mbedtls_pk_ec() is removed, so we use PSA APIs instead.
+ *
+ * @param pk_ctx       Pointer to the mbedtls_pk_context containing the public key
+ * @param pubkey       Output buffer for the raw public key (65 bytes for P-256)
+ * @param pubkey_len   Length of the output buffer
+ *
+ * @return CHIP_NO_ERROR on success, appropriate error code otherwise
+ */
+static CHIP_ERROR ExtractRawPublicKeyFromPKContext(mbedtls_pk_context * pk_ctx, uint8_t * pubkey, size_t pubkey_len)
+{
+    CHIP_ERROR error = CHIP_NO_ERROR;
+    int result       = 0;
+    size_t pubkey_size = 0;
+
+#if (MBEDTLS_VERSION_NUMBER >= 0x04000000)
+    psa_key_id_t key_id             = PSA_KEY_ID_NULL;
+    psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+
+    psa_set_key_type(&attributes, PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_FAMILY_SECP_R1));
+    psa_set_key_bits(&attributes, 256);
+    psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_VERIFY_MESSAGE | PSA_KEY_USAGE_VERIFY_HASH | PSA_KEY_USAGE_EXPORT);
+    psa_set_key_algorithm(&attributes, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+
+    {
+        result = mbedtls_pk_import_into_psa(pk_ctx, &attributes, &key_id);
+    VerifyOrExit(result == 0, error = CHIP_ERROR_INTERNAL);
+
+    psa_status_t status = psa_export_public_key(key_id, pubkey, pubkey_len, &pubkey_size);
+    VerifyOrExit(status == PSA_SUCCESS, error = CHIP_ERROR_INTERNAL);
+    }
+
+exit:
+    if (key_id != PSA_KEY_ID_NULL)
+    {
+        psa_destroy_key(key_id);
+    }
+#else
+    mbedtls_ecp_keypair * keypair = mbedtls_pk_ec(*pk_ctx);
+    VerifyOrExit(keypair != nullptr, error = CHIP_ERROR_INTERNAL);
+
+    result = mbedtls_ecp_point_write_binary(&keypair->CHIP_CRYPTO_PAL_PRIVATE(grp), &keypair->CHIP_CRYPTO_PAL_PRIVATE(Q),
+                                            MBEDTLS_ECP_PF_UNCOMPRESSED, &pubkey_size, pubkey, pubkey_len);
+    VerifyOrExit(result == 0, error = CHIP_ERROR_INTERNAL);
+
+exit:
+#endif
+    _log_mbedTLS_error(result);
+    return error;
+}
+
+} // namespace
 
 CHIP_ERROR VerifyCertificateSigningRequest(const uint8_t * csr_buf, size_t csr_length, P256PublicKey & pubkey)
 {
@@ -49,9 +111,6 @@ CHIP_ERROR VerifyCertificateSigningRequest(const uint8_t * csr_buf, size_t csr_l
     //       Taking a step back, embedded targets likely will not process CSR requests. Adding this action item to reevaluate
     //       this if there's a need for this processing for embedded targets.
     CHIP_ERROR error   = CHIP_NO_ERROR;
-    size_t pubkey_size = 0;
-
-    mbedtls_ecp_keypair * keypair = nullptr;
 
     P256ECDSASignature signature;
     MutableByteSpan out_raw_sig_span(signature.Bytes(), signature.Capacity());
@@ -64,16 +123,16 @@ CHIP_ERROR VerifyCertificateSigningRequest(const uint8_t * csr_buf, size_t csr_l
 
     // Verify the signature algorithm and public key type
     VerifyOrExit(csr.CHIP_CRYPTO_PAL_PRIVATE(sig_md) == MBEDTLS_MD_SHA256, error = CHIP_ERROR_UNSUPPORTED_SIGNATURE_TYPE);
+#if (MBEDTLS_VERSION_NUMBER >= 0x04000000)
+    // In mbedTLS 4.0, sig_pk type changed from mbedtls_pk_type_t to mbedtls_pk_sigalg_t
+    VerifyOrExit(csr.CHIP_CRYPTO_PAL_PRIVATE(sig_pk) == MBEDTLS_PK_SIGALG_ECDSA, error = CHIP_ERROR_WRONG_KEY_TYPE);
+#else
     VerifyOrExit(csr.CHIP_CRYPTO_PAL_PRIVATE(sig_pk) == MBEDTLS_PK_ECDSA, error = CHIP_ERROR_WRONG_KEY_TYPE);
-
-    keypair = mbedtls_pk_ec(csr.CHIP_CRYPTO_PAL_PRIVATE_X509(pk));
+#endif
 
     // Copy the public key from the CSR
-    result = mbedtls_ecp_point_write_binary(&keypair->CHIP_CRYPTO_PAL_PRIVATE(grp), &keypair->CHIP_CRYPTO_PAL_PRIVATE(Q),
-                                            MBEDTLS_ECP_PF_UNCOMPRESSED, &pubkey_size, Uint8::to_uchar(pubkey), pubkey.Length());
-
-    VerifyOrExit(result == 0, error = CHIP_ERROR_INTERNAL);
-    VerifyOrExit(pubkey_size == pubkey.Length(), error = CHIP_ERROR_INTERNAL);
+    error = ExtractRawPublicKeyFromPKContext(&csr.CHIP_CRYPTO_PAL_PRIVATE_X509(pk), Uint8::to_uchar(pubkey), pubkey.Length());
+    VerifyOrExit(error == CHIP_NO_ERROR, /* error is already set */);
 
     // Convert DER signature to raw signature
     error = EcdsaAsn1SignatureToRaw(kP256_FE_Length,
@@ -505,31 +564,31 @@ exit:
 CHIP_ERROR ExtractPubkeyFromX509Cert(const ByteSpan & certificate, Crypto::P256PublicKey & pubkey)
 {
 #if defined(MBEDTLS_X509_CRT_PARSE_C)
-    CHIP_ERROR error = CHIP_NO_ERROR;
+    CHIP_ERROR error   = CHIP_NO_ERROR;
     mbedtls_x509_crt mbed_cert;
-    mbedtls_ecp_keypair * keypair = nullptr;
-    size_t pubkey_size            = 0;
 
     mbedtls_x509_crt_init(&mbed_cert);
 
     int result = mbedtls_x509_crt_parse(&mbed_cert, Uint8::to_const_uchar(certificate.data()), certificate.size());
     VerifyOrExit(result == 0, error = CHIP_ERROR_INTERNAL);
 
+#if (MBEDTLS_VERSION_NUMBER < 0x04000000)
+    // For mbedTLS < 4.0, verify it's an EC key with P-256 curve
+    // For mbedTLS 4.0+, the key type validation happens in ExtractRawPublicKeyFromPKContext
+    // when importing into PSA - it will fail if not a valid P-256 EC key
     VerifyOrExit(mbedtls_pk_get_type(&(mbed_cert.CHIP_CRYPTO_PAL_PRIVATE_X509(pk))) == MBEDTLS_PK_ECKEY,
                  error = CHIP_ERROR_INVALID_ARGUMENT);
 
-    keypair = mbedtls_pk_ec(mbed_cert.CHIP_CRYPTO_PAL_PRIVATE_X509(pk));
-    VerifyOrExit(keypair->CHIP_CRYPTO_PAL_PRIVATE(grp).id == MapECPGroupId(pubkey.Type()), error = CHIP_ERROR_INVALID_ARGUMENT);
-    // Copy the public key from the cert in raw point format
-    result =
-        mbedtls_ecp_point_write_binary(&keypair->CHIP_CRYPTO_PAL_PRIVATE(grp), &keypair->CHIP_CRYPTO_PAL_PRIVATE(Q),
-                                       MBEDTLS_ECP_PF_UNCOMPRESSED, &pubkey_size, Uint8::to_uchar(pubkey.Bytes()), pubkey.Length());
+    // Verify key size matches P-256 (256 bits)
+    VerifyOrExit(mbedtls_pk_get_bitlen(&(mbed_cert.CHIP_CRYPTO_PAL_PRIVATE_X509(pk))) == 256, error = CHIP_ERROR_INVALID_ARGUMENT);
+#endif
 
-    VerifyOrExit(result == 0, error = CHIP_ERROR_INTERNAL);
-    VerifyOrExit(pubkey_size == pubkey.Length(), error = CHIP_ERROR_INTERNAL);
+    // Copy the public key from the cert in raw point format
+    error = ExtractRawPublicKeyFromPKContext(&mbed_cert.CHIP_CRYPTO_PAL_PRIVATE_X509(pk), Uint8::to_uchar(pubkey.Bytes()),
+                                             pubkey.Length());
+    VerifyOrExit(error == CHIP_NO_ERROR, /* error is already set */);
 
 exit:
-    _log_mbedTLS_error(result);
     mbedtls_x509_crt_free(&mbed_cert);
 
 #else
