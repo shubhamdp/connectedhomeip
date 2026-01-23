@@ -90,7 +90,7 @@ class TouchesMatterStackModel : public ListScreen::Model
     void ItemAction(int i) final
     {
         auto * action = chip::Platform::New<QueuedAction>(this, i);
-        chip::DeviceLayer::PlatformMgr().ScheduleWork(QueuedActionHandler, reinterpret_cast<intptr_t>(action));
+        TEMPORARY_RETURN_IGNORED chip::DeviceLayer::PlatformMgr().ScheduleWork(QueuedActionHandler, reinterpret_cast<intptr_t>(action));
     }
 
     static void QueuedActionHandler(intptr_t closure)
@@ -444,7 +444,7 @@ public:
         {
             ConnectivityMgr().ClearWiFiStationProvision();
             chip::Server::GetInstance().GetFabricTable().DeleteAllFabrics();
-            chip::Server::GetInstance().GetCommissioningWindowManager().OpenBasicCommissioningWindow();
+            TEMPORARY_RETURN_IGNORED chip::Server::GetInstance().GetCommissioningWindowManager().OpenBasicCommissioningWindow();
         }
         else if (i == 1)
         {
@@ -454,7 +454,7 @@ public:
         {
             chip::Server::GetInstance().GetFabricTable().DeleteAllFabrics();
             auto & commissionMgr = chip::Server::GetInstance().GetCommissioningWindowManager();
-            commissionMgr.OpenBasicCommissioningWindow(commissionMgr.MaxCommissioningTimeout(),
+            TEMPORARY_RETURN_IGNORED commissionMgr.OpenBasicCommissioningWindow(commissionMgr.MaxCommissioningTimeout(),
                                                        CommissioningWindowAdvertisement::kDnssdOnly);
         }
     }
@@ -669,7 +669,7 @@ void InitDeviceDisplay()
     chip::MutableCharSpan qrCodeText(qrCodeBuffer);
 
     // Get QR Code and emulate its content using NFC tag
-    GetQRCode(qrCodeText, chip::RendezvousInformationFlags(CONFIG_RENDEZVOUS_MODE));
+    TEMPORARY_RETURN_IGNORED GetQRCode(qrCodeText, chip::RendezvousInformationFlags(CONFIG_RENDEZVOUS_MODE));
 
     // Initialize the display device.
     esp_err_t err = InitDisplay();

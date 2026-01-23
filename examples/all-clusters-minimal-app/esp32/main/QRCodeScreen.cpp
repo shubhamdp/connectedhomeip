@@ -45,7 +45,7 @@
 #include <string>
 
 // TODO need sensible library tag when put in library
-extern const char TAG[];
+static const char TAG[] = "all-clusters-minimal-app";
 
 namespace {
 

@@ -58,6 +58,11 @@ idf_build_set_property(COMPILE_OPTIONS "-Wno-error=maybe-uninitialized" APPEND)
 #For the H2, -Werror=uninitialized will cause an error in "src/lib/support/LambdaBridge.h"
 idf_build_set_property(COMPILE_OPTIONS "-Wno-error=uninitialized" APPEND)
 
+# Suppress missing-field-initializers warnings for ESP-IDF 6.x compatibility
+if (IDF_VERSION_MAJOR GREATER_EQUAL 6)
+    idf_build_set_property(COMPILE_OPTIONS "-Wno-error=missing-field-initializers" APPEND)
+endif()
+
 flashing_script()
 
 if(CONFIG_ENABLE_PW_RPC)

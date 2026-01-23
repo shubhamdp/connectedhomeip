@@ -205,9 +205,8 @@ void SetupBrightnessControl()
     ledc_timer.freq_hz         = LEDC_PWM_HZ;          // frequency of PWM signal
     ledc_timer.speed_mode      = LEDC_HIGH_SPEED_MODE; // timer mode
     ledc_timer.timer_num       = LEDC_TIMER_0;         // timer index
+    ledc_timer.clk_cfg         = LEDC_AUTO_CLK;        // Auto select clock source
     ledc_timer_config(&ledc_timer);
-
-    ledc_timer_set(LEDC_HIGH_SPEED_MODE, LEDC_TIMER_0, LEDC_PWM_HZ, LEDC_TIMER_8_BIT, LEDC_REF_TICK);
 
     ledc_channel_config_t ledc_channel;
     memset(&ledc_channel, 0, sizeof(ledc_channel));

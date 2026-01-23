@@ -211,7 +211,7 @@ extern "C" void app_main()
 
     SetDeviceAttestationCredentialsProvider(get_dac_provider());
 
-    chip::DeviceLayer::PlatformMgr().ScheduleWork(InitServer, reinterpret_cast<intptr_t>(nullptr));
+    TEMPORARY_RETURN_IGNORED chip::DeviceLayer::PlatformMgr().ScheduleWork(InitServer, reinterpret_cast<intptr_t>(nullptr));
 
     error = GetAppTask().StartAppTask();
     if (error != CHIP_NO_ERROR)

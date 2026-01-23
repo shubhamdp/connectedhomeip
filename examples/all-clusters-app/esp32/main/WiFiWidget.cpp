@@ -31,7 +31,7 @@
 #include "ScreenManager.h"
 #endif
 
-extern const char TAG[];
+static const char TAG[] = "all-clusters-app";
 
 void WiFiWidget::Init()
 {
