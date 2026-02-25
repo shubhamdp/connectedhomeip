@@ -95,6 +95,10 @@ CHIP_ERROR GetConfiguredNetwork(Network & network)
 
 CHIP_ERROR ESPWiFiDriver::Init(NetworkStatusChangeCallback * networkStatusChangeCallback)
 {
+    mpScanCallback         = nullptr;
+    mpConnectCallback      = nullptr;
+    mpStatusChangeCallback = networkStatusChangeCallback;
+
     wifi_config_t stationConfig;
     if (esp_wifi_get_config(WIFI_IF_STA, &stationConfig) == ESP_OK && stationConfig.sta.ssid[0] != 0)
     {
@@ -108,11 +112,12 @@ CHIP_ERROR ESPWiFiDriver::Init(NetworkStatusChangeCallback * networkStatusChange
 
         memcpy(mStagingNetwork.credentials, stationConfig.sta.password, credentialsLen);
         mStagingNetwork.credentialsLen = credentialsLen;
-    }
 
-    mpScanCallback         = nullptr;
-    mpConnectCallback      = nullptr;
-    mpStatusChangeCallback = networkStatusChangeCallback;
+        // This sets the valuse of LastNetworkId and LastNetworkingStatus
+        // This is needed in cases where Wi-Fi is connected even before Matter stack is ready
+        // so that the these bits can be read successfully and the TC-CNET-4.1 test can pass
+        OnNetworkStatusChange();
+    }
 
     // If the network configuration backup exists, it means that the device has been rebooted with
     // the fail-safe armed. Since ESP-WiFi persists all wifi credentials changes, the backup must
