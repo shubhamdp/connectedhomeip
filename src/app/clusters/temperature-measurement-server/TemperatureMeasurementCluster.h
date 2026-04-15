@@ -16,15 +16,55 @@
  */
 #pragma once
 
-#include <app-common/zap-generated/attributes/Accessors.h>
-#include <app/server-cluster/DefaultServerCluster.h>
+#include <app/clusters/measurement-base/MeasurementClusterBase.h>
 #include <app/server-cluster/OptionalAttributeSet.h>
 #include <clusters/TemperatureMeasurement/Attributes.h>
 #include <clusters/TemperatureMeasurement/Metadata.h>
 
 namespace chip::app::Clusters {
 
-class TemperatureMeasurementCluster : public DefaultServerCluster
+namespace TemperatureMeasurementDetail {
+
+struct Traits
+{
+    using ValueType = int16_t;
+
+    static constexpr ClusterId kClusterId    = TemperatureMeasurement::Id;
+    static constexpr uint32_t kClusterRevision = TemperatureMeasurement::kRevision;
+
+    static constexpr AttributeId kMeasuredValueId    = TemperatureMeasurement::Attributes::MeasuredValue::Id;
+    static constexpr AttributeId kMinMeasuredValueId = TemperatureMeasurement::Attributes::MinMeasuredValue::Id;
+    static constexpr AttributeId kMaxMeasuredValueId = TemperatureMeasurement::Attributes::MaxMeasuredValue::Id;
+    static constexpr AttributeId kToleranceId        = TemperatureMeasurement::Attributes::Tolerance::Id;
+    static constexpr AttributeId kClusterRevisionId  = TemperatureMeasurement::Attributes::ClusterRevision::Id;
+    static constexpr AttributeId kFeatureMapId       = TemperatureMeasurement::Attributes::FeatureMap::Id;
+
+    // Spec-defined range bounds
+    static constexpr ValueType kMinMeasuredValueRangeMin = -27315;
+    static constexpr ValueType kMinMeasuredValueRangeMax = 32766;
+    // For temperature, max has no separate upper bound beyond the type limit
+    static constexpr ValueType kMaxMeasuredValueRangeMax = 32767;
+    static constexpr uint16_t kMaxTolerance              = 2048;
+
+    static bool ValidateMeasuredValue(ValueType /* value */) { return true; }
+
+    static Span<const DataModel::AttributeEntry> GetMandatoryMetadata()
+    {
+        return Span<const DataModel::AttributeEntry>(TemperatureMeasurement::Attributes::kMandatoryMetadata);
+    }
+
+    static Span<const DataModel::AttributeEntry> GetBaseOptionalAttributes()
+    {
+        static const DataModel::AttributeEntry sOptional[] = {
+            TemperatureMeasurement::Attributes::Tolerance::kMetadataEntry,
+        };
+        return Span<const DataModel::AttributeEntry>(sOptional);
+    }
+};
+
+} // namespace TemperatureMeasurementDetail
+
+class TemperatureMeasurementCluster : public MeasurementClusterBase<TemperatureMeasurementDetail::Traits>
 {
 public:
     using OptionalAttributeSet = app::OptionalAttributeSet<TemperatureMeasurement::Attributes::Tolerance::Id>;
@@ -39,24 +79,8 @@ public:
     TemperatureMeasurementCluster(EndpointId endpointId, const OptionalAttributeSet & optionalAttributeSet,
                                   const StartupConfiguration & config);
 
-    // Server cluster implementation
-    DataModel::ActionReturnStatus ReadAttribute(const DataModel::ReadAttributeRequest & request,
-                                                AttributeValueEncoder & encoder) override;
-    CHIP_ERROR Attributes(const ConcreteClusterPath & path, ReadOnlyBufferBuilder<DataModel::AttributeEntry> & builder) override;
-
-    CHIP_ERROR SetMeasuredValue(DataModel::Nullable<int16_t> measuredValue);
-    DataModel::Nullable<int16_t> GetMeasuredValue() const { return mMeasuredValue; }
-
-    CHIP_ERROR SetMeasuredValueRange(DataModel::Nullable<int16_t> minMeasuredValue, DataModel::Nullable<int16_t> maxMeasuredValue);
-    DataModel::Nullable<int16_t> GetMinMeasuredValue() const { return mMinMeasuredValue; }
-    DataModel::Nullable<int16_t> GetMaxMeasuredValue() const { return mMaxMeasuredValue; }
-
-protected:
-    const OptionalAttributeSet mOptionalAttributeSet;
-    DataModel::Nullable<int16_t> mMeasuredValue{};
-    DataModel::Nullable<int16_t> mMinMeasuredValue{};
-    DataModel::Nullable<int16_t> mMaxMeasuredValue{};
-    uint16_t mTolerance{};
+    // Public SetMeasuredValueRange (Temperature has this public, unlike Flow/Humidity)
+    using MeasurementClusterBase::SetMeasuredValueRange;
 };
 
 } // namespace chip::app::Clusters

@@ -14,17 +14,14 @@
 import("//build_overrides/build.gni")
 import("//build_overrides/chip.gni")
 
-source_set("flow-measurement-server") {
+source_set("measurement-base") {
   sources = [
-    "FlowMeasurementCluster.cpp",
-    "FlowMeasurementCluster.h",
+    "MeasurementClusterBase.h",
+    "MeasurementClusterCommon.cpp",
   ]
 
   public_deps = [
-    "${chip_root}/src/app/clusters/measurement-base",
     "${chip_root}/src/app/data-model-provider",
-    "${chip_root}/src/app/server",
     "${chip_root}/src/app/server-cluster",
-    "${chip_root}/zzz_generated/app-common/clusters/FlowMeasurement",
   ]
 }

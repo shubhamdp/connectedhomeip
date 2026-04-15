@@ -21,6 +21,7 @@ source_set("temperature-measurement-server") {
   ]
 
   public_deps = [
+    "${chip_root}/src/app/clusters/measurement-base",
     "${chip_root}/src/app/data-model-provider",
     "${chip_root}/src/app/server",
     "${chip_root}/src/app/server-cluster",

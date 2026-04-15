@@ -16,6 +16,7 @@
  *    limitations under the License.
  */
 
+#include <app-common/zap-generated/attributes/Accessors.h>
 #include <app/clusters/temperature-measurement-server/CodegenIntegration.h>
 #include <app/clusters/temperature-measurement-server/TemperatureMeasurementCluster.h>
 #include <app/static-cluster-config/TemperatureMeasurement.h>
