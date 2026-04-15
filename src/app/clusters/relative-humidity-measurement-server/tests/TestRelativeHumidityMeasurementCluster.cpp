@@ -83,7 +83,7 @@ TEST_F(TestRelativeHumidityMeasurementCluster, AttributeListTest)
     // With Tolerance optional attribute
     {
         const DataModel::AttributeEntry optionalAttributes[] = { Tolerance::kMetadataEntry };
-        RelativeHumidityMeasurementCluster::OptionalAttributeSet optionalAttributeSet;
+        RelativeHumidityMeasurementCluster::OptionalAttributes optionalAttributeSet;
         optionalAttributeSet.Set<Tolerance::Id>();
 
         RelativeHumidityMeasurementCluster cluster(kRootEndpointId, RelativeHumidityMeasurementCluster::Config{}.WithTolerance(0));

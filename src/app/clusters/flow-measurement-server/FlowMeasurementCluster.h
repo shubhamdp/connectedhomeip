@@ -16,56 +16,39 @@
  */
 #pragma once
 
-#include <app/server-cluster/DefaultServerCluster.h>
-#include <app/server-cluster/OptionalAttributeSet.h>
+#include <app/clusters/measurement-base/MeasurementClusterBase.h>
 #include <clusters/FlowMeasurement/Attributes.h>
 #include <clusters/FlowMeasurement/Metadata.h>
 
 namespace chip::app::Clusters {
 
-class FlowMeasurementCluster : public DefaultServerCluster
+struct FlowMeasurementTraits
+{
+    using ValueType = uint16_t;
+
+    static constexpr ClusterId kClusterId   = FlowMeasurement::Id;
+    static constexpr uint32_t kRevision     = FlowMeasurement::kRevision;
+    static constexpr uint16_t kMaxTolerance = 2048;
+
+    static constexpr uint16_t kMinValueFloor   = 0;
+    static constexpr uint16_t kMinValueCeiling = 65533;
+    static constexpr uint16_t kMaxValueCeiling = 65534;
+
+    static constexpr auto & kMandatoryMetadata = FlowMeasurement::Attributes::kMandatoryMetadata;
+
+    static const DataModel::AttributeEntry & GetToleranceMetadataEntry()
+    {
+        return FlowMeasurement::Attributes::Tolerance::kMetadataEntry;
+    }
+
+    static bool ValidateMeasuredValue(uint16_t /* value */) { return true; }
+};
+
+class FlowMeasurementCluster : public MeasurementClusterBase<FlowMeasurementTraits>
 {
 public:
-    using OptionalAttributeSet = app::OptionalAttributeSet<FlowMeasurement::Attributes::Tolerance::Id>;
-
-    struct Config
-    {
-        Config() : minMeasuredValue(), maxMeasuredValue(), mOptionalAttributeSet(), mTolerance(0) {}
-
-        Config & WithTolerance(uint16_t value)
-        {
-            mTolerance = value;
-            mOptionalAttributeSet.template Set<FlowMeasurement::Attributes::Tolerance::Id>();
-            return *this;
-        }
-
-        DataModel::Nullable<uint16_t> minMeasuredValue;
-        DataModel::Nullable<uint16_t> maxMeasuredValue;
-        OptionalAttributeSet mOptionalAttributeSet;
-        uint16_t mTolerance;
-    };
-
-    explicit FlowMeasurementCluster(EndpointId endpointId);
-    FlowMeasurementCluster(EndpointId endpointId, const Config & config);
-
-    DataModel::ActionReturnStatus ReadAttribute(const DataModel::ReadAttributeRequest & request,
-                                                AttributeValueEncoder & encoder) override;
-    CHIP_ERROR Attributes(const ConcreteClusterPath & path, ReadOnlyBufferBuilder<DataModel::AttributeEntry> & builder) override;
-
-    CHIP_ERROR SetMeasuredValue(DataModel::Nullable<uint16_t> measuredValue);
-    DataModel::Nullable<uint16_t> GetMeasuredValue() const { return mMeasuredValue; }
-
-    DataModel::Nullable<uint16_t> GetMinMeasuredValue() const { return mMinMeasuredValue; }
-    DataModel::Nullable<uint16_t> GetMaxMeasuredValue() const { return mMaxMeasuredValue; }
-
-protected:
-    CHIP_ERROR SetMeasuredValueRange(DataModel::Nullable<uint16_t> minMeasuredValue,
-                                     DataModel::Nullable<uint16_t> maxMeasuredValue);
-    const OptionalAttributeSet mOptionalAttributeSet;
-    DataModel::Nullable<uint16_t> mMeasuredValue{};
-    DataModel::Nullable<uint16_t> mMinMeasuredValue{};
-    DataModel::Nullable<uint16_t> mMaxMeasuredValue{};
-    uint16_t mTolerance{};
+    using Base = MeasurementClusterBase<FlowMeasurementTraits>;
+    using Base::Base;
 };
 
 } // namespace chip::app::Clusters

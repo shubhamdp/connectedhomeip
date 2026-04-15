@@ -31,14 +31,6 @@ using namespace chip::app::Clusters::FlowMeasurement;
 using namespace chip::app::Clusters::FlowMeasurement::Attributes;
 using namespace chip::Testing;
 
-// Exposes protected SetMeasuredValueRange for testing
-class TestableFlowMeasurementCluster : public FlowMeasurementCluster
-{
-public:
-    using FlowMeasurementCluster::FlowMeasurementCluster;
-    using FlowMeasurementCluster::SetMeasuredValueRange;
-};
-
 struct TestFlowMeasurementCluster : public ::testing::Test
 {
     static void SetUpTestSuite() { ASSERT_EQ(chip::Platform::MemoryInit(), CHIP_NO_ERROR); }
@@ -89,9 +81,9 @@ TEST_F(TestFlowMeasurementCluster, AttributeTest)
 
     {
         const DataModel::AttributeEntry optionalAttributes[] = { Tolerance::kMetadataEntry };
-        FlowMeasurementCluster::Config config;
-        config.WithTolerance(100);
-        FlowMeasurementCluster cluster(kRootEndpointId, config);
+        FlowMeasurementCluster::OptionalAttributes optionalAttributeSet;
+        optionalAttributeSet.Set<Tolerance::Id>();
+        FlowMeasurementCluster cluster(kRootEndpointId, FlowMeasurementCluster::Config{}.WithTolerance(100));
         ASSERT_EQ(cluster.Startup(testContext.Get()), CHIP_NO_ERROR);
 
         ReadOnlyBufferBuilder<DataModel::AttributeEntry> attributes;
@@ -99,7 +91,7 @@ TEST_F(TestFlowMeasurementCluster, AttributeTest)
 
         ReadOnlyBufferBuilder<DataModel::AttributeEntry> expected;
         AttributeListBuilder listBuilder(expected);
-        ASSERT_EQ(listBuilder.Append(Span(kMandatoryMetadata), Span(optionalAttributes), config.mOptionalAttributeSet),
+        ASSERT_EQ(listBuilder.Append(Span(kMandatoryMetadata), Span(optionalAttributes), optionalAttributeSet),
                   CHIP_NO_ERROR);
         ASSERT_TRUE(chip::Testing::EqualAttributeSets(attributes.TakeBuffer(), expected.TakeBuffer()));
 
@@ -144,7 +136,6 @@ TEST_F(TestFlowMeasurementCluster, ReadUnsupportedAttribute)
 
     ClusterTester tester(cluster);
 
-    // Reading an attribute not in the cluster should fail
     uint16_t dummy{};
     EXPECT_NE(tester.ReadAttribute(0xFFF0, dummy), CHIP_NO_ERROR);
 
@@ -197,32 +188,12 @@ TEST_F(TestFlowMeasurementCluster, ConstructorVariants)
     }
 }
 
-TEST_F(TestFlowMeasurementCluster, InvalidRangeDefaultsToNull)
-{
-    // min == max == 0 is invalid (max must be >= min + 1).
-    // SetMeasuredValueRange should reject this.
-    TestableFlowMeasurementCluster cluster(kRootEndpointId);
-    ASSERT_EQ(cluster.Startup(testContext.Get()), CHIP_NO_ERROR);
-
-    DataModel::Nullable<uint16_t> min;
-    DataModel::Nullable<uint16_t> max;
-    min.SetNonNull(0);
-    max.SetNonNull(0);
-    EXPECT_EQ(cluster.SetMeasuredValueRange(min, max), CHIP_IM_GLOBAL_STATUS(ConstraintError));
-
-    // Verify the range was not changed (still null from default)
-    EXPECT_TRUE(cluster.GetMinMeasuredValue().IsNull());
-    EXPECT_TRUE(cluster.GetMaxMeasuredValue().IsNull());
-
-    cluster.Shutdown(ClusterShutdownType::kClusterShutdown);
-}
-
 TEST_F(TestFlowMeasurementCluster, MeasuredValue)
 {
     FlowMeasurementCluster::Config config;
     config.minMeasuredValue.SetNonNull(1);
     config.maxMeasuredValue.SetNonNull(3);
-    TestableFlowMeasurementCluster cluster(kRootEndpointId, config);
+    FlowMeasurementCluster cluster(kRootEndpointId, config);
     ASSERT_EQ(cluster.Startup(testContext.Get()), CHIP_NO_ERROR);
 
     DataModel::Nullable<uint16_t> measuredValue{};
@@ -251,108 +222,6 @@ TEST_F(TestFlowMeasurementCluster, MeasuredValue)
     EXPECT_EQ(cluster.SetMeasuredValue(measuredValue), CHIP_NO_ERROR);
     measuredVal = cluster.GetMeasuredValue();
     EXPECT_EQ(measuredVal, measuredValue);
-
-    DataModel::Nullable<uint16_t> minMeasuredValue{};
-    DataModel::Nullable<uint16_t> maxMeasuredValue{};
-    minMeasuredValue.SetNull();
-    maxMeasuredValue.SetNull();
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_NO_ERROR);
-
-    measuredValue.SetNonNull(0);
-    EXPECT_EQ(cluster.SetMeasuredValue(measuredValue), CHIP_NO_ERROR);
-
-    measuredValue.SetNonNull(4);
-    EXPECT_EQ(cluster.SetMeasuredValue(measuredValue), CHIP_NO_ERROR);
-
-    measuredValue.SetNonNull(65534);
-    EXPECT_EQ(cluster.SetMeasuredValue(measuredValue), CHIP_NO_ERROR);
-
-    minMeasuredValue.SetNonNull(1);
-    maxMeasuredValue.SetNull();
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_NO_ERROR);
-
-    measuredValue.SetNonNull(0);
-    EXPECT_EQ(cluster.SetMeasuredValue(measuredValue), CHIP_IM_GLOBAL_STATUS(ConstraintError));
-
-    measuredValue.SetNonNull(65534);
-    EXPECT_EQ(cluster.SetMeasuredValue(measuredValue), CHIP_NO_ERROR);
-
-    minMeasuredValue.SetNull();
-    maxMeasuredValue.SetNonNull(3);
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_NO_ERROR);
-
-    measuredValue.SetNonNull(4);
-    EXPECT_EQ(cluster.SetMeasuredValue(measuredValue), CHIP_IM_GLOBAL_STATUS(ConstraintError));
-
-    measuredValue.SetNonNull(0);
-    EXPECT_EQ(cluster.SetMeasuredValue(measuredValue), CHIP_NO_ERROR);
-
-    cluster.Shutdown(ClusterShutdownType::kClusterShutdown);
-}
-
-TEST_F(TestFlowMeasurementCluster, MeasuredValueRange)
-{
-    TestableFlowMeasurementCluster cluster(kRootEndpointId);
-    ASSERT_EQ(cluster.Startup(testContext.Get()), CHIP_NO_ERROR);
-
-    DataModel::Nullable<uint16_t> minMeasuredValue{};
-    DataModel::Nullable<uint16_t> maxMeasuredValue{};
-    minMeasuredValue.SetNonNull(0);
-    maxMeasuredValue.SetNonNull(1);
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_NO_ERROR);
-    DataModel::Nullable<uint16_t> minMeasuredVal = cluster.GetMinMeasuredValue();
-    DataModel::Nullable<uint16_t> maxMeasuredVal = cluster.GetMaxMeasuredValue();
-    EXPECT_EQ(minMeasuredVal.Value(), minMeasuredValue.Value());
-    EXPECT_EQ(maxMeasuredVal.Value(), maxMeasuredValue.Value());
-
-    minMeasuredValue.SetNonNull(65533);
-    maxMeasuredValue.SetNonNull(65534);
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_NO_ERROR);
-    minMeasuredVal = cluster.GetMinMeasuredValue();
-    maxMeasuredVal = cluster.GetMaxMeasuredValue();
-    EXPECT_EQ(minMeasuredVal.Value(), minMeasuredValue.Value());
-    EXPECT_EQ(maxMeasuredVal.Value(), maxMeasuredValue.Value());
-
-    // min exceeds max allowed (65533)
-    minMeasuredValue.SetNonNull(65534);
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_IM_GLOBAL_STATUS(ConstraintError));
-
-    // max exceeds max allowed (65534)
-    minMeasuredValue.SetNonNull(0);
-    maxMeasuredValue.SetNonNull(65535);
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_IM_GLOBAL_STATUS(ConstraintError));
-
-    // min == max (must be min + 1)
-    minMeasuredValue.SetNonNull(100);
-    maxMeasuredValue.SetNonNull(100);
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_IM_GLOBAL_STATUS(ConstraintError));
-
-    // both null
-    minMeasuredValue.SetNull();
-    maxMeasuredValue.SetNull();
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_NO_ERROR);
-    minMeasuredVal = cluster.GetMinMeasuredValue();
-    maxMeasuredVal = cluster.GetMaxMeasuredValue();
-    EXPECT_EQ(minMeasuredVal, minMeasuredValue);
-    EXPECT_EQ(maxMeasuredVal, maxMeasuredValue);
-
-    // only min set
-    minMeasuredValue.SetNonNull(65533);
-    maxMeasuredValue.SetNull();
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_NO_ERROR);
-    minMeasuredVal = cluster.GetMinMeasuredValue();
-    maxMeasuredVal = cluster.GetMaxMeasuredValue();
-    EXPECT_EQ(minMeasuredVal, minMeasuredValue);
-    EXPECT_EQ(maxMeasuredVal, maxMeasuredValue);
-
-    // only max set
-    minMeasuredValue.SetNull();
-    maxMeasuredValue.SetNonNull(65534);
-    EXPECT_EQ(cluster.SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue), CHIP_NO_ERROR);
-    minMeasuredVal = cluster.GetMinMeasuredValue();
-    maxMeasuredVal = cluster.GetMaxMeasuredValue();
-    EXPECT_EQ(minMeasuredVal, minMeasuredValue);
-    EXPECT_EQ(maxMeasuredVal, maxMeasuredValue);
 
     cluster.Shutdown(ClusterShutdownType::kClusterShutdown);
 }

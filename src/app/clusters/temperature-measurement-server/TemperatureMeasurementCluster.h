@@ -16,47 +16,39 @@
  */
 #pragma once
 
-#include <app-common/zap-generated/attributes/Accessors.h>
-#include <app/server-cluster/DefaultServerCluster.h>
-#include <app/server-cluster/OptionalAttributeSet.h>
+#include <app/clusters/measurement-base/MeasurementClusterBase.h>
 #include <clusters/TemperatureMeasurement/Attributes.h>
 #include <clusters/TemperatureMeasurement/Metadata.h>
 
 namespace chip::app::Clusters {
 
-class TemperatureMeasurementCluster : public DefaultServerCluster
+struct TemperatureMeasurementTraits
+{
+    using ValueType = int16_t;
+
+    static constexpr ClusterId kClusterId   = TemperatureMeasurement::Id;
+    static constexpr uint32_t kRevision     = TemperatureMeasurement::kRevision;
+    static constexpr uint16_t kMaxTolerance = 2048;
+
+    static constexpr int16_t kMinValueFloor   = -27315;
+    static constexpr int16_t kMinValueCeiling = 32766;
+    static constexpr int16_t kMaxValueCeiling = 32767;
+
+    static constexpr auto & kMandatoryMetadata = TemperatureMeasurement::Attributes::kMandatoryMetadata;
+
+    static const DataModel::AttributeEntry & GetToleranceMetadataEntry()
+    {
+        return TemperatureMeasurement::Attributes::Tolerance::kMetadataEntry;
+    }
+
+    static bool ValidateMeasuredValue(int16_t /* value */) { return true; }
+};
+
+class TemperatureMeasurementCluster : public MeasurementClusterBase<TemperatureMeasurementTraits>
 {
 public:
-    using OptionalAttributeSet = app::OptionalAttributeSet<TemperatureMeasurement::Attributes::Tolerance::Id>;
-
-    struct StartupConfiguration
-    {
-        DataModel::Nullable<int16_t> minMeasuredValue{};
-        DataModel::Nullable<int16_t> maxMeasuredValue{};
-        uint16_t tolerance{};
-    };
-
-    TemperatureMeasurementCluster(EndpointId endpointId, const OptionalAttributeSet & optionalAttributeSet,
-                                  const StartupConfiguration & config);
-
-    // Server cluster implementation
-    DataModel::ActionReturnStatus ReadAttribute(const DataModel::ReadAttributeRequest & request,
-                                                AttributeValueEncoder & encoder) override;
-    CHIP_ERROR Attributes(const ConcreteClusterPath & path, ReadOnlyBufferBuilder<DataModel::AttributeEntry> & builder) override;
-
-    CHIP_ERROR SetMeasuredValue(DataModel::Nullable<int16_t> measuredValue);
-    DataModel::Nullable<int16_t> GetMeasuredValue() const { return mMeasuredValue; }
-
-    CHIP_ERROR SetMeasuredValueRange(DataModel::Nullable<int16_t> minMeasuredValue, DataModel::Nullable<int16_t> maxMeasuredValue);
-    DataModel::Nullable<int16_t> GetMinMeasuredValue() const { return mMinMeasuredValue; }
-    DataModel::Nullable<int16_t> GetMaxMeasuredValue() const { return mMaxMeasuredValue; }
-
-protected:
-    const OptionalAttributeSet mOptionalAttributeSet;
-    DataModel::Nullable<int16_t> mMeasuredValue{};
-    DataModel::Nullable<int16_t> mMinMeasuredValue{};
-    DataModel::Nullable<int16_t> mMaxMeasuredValue{};
-    uint16_t mTolerance{};
+    using Base = MeasurementClusterBase<TemperatureMeasurementTraits>;
+    using Base::Base;
 };
 
 } // namespace chip::app::Clusters

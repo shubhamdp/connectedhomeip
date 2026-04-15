@@ -16,6 +16,7 @@
  *    limitations under the License.
  */
 
+#include <app-common/zap-generated/attributes/Accessors.h>
 #include <app/clusters/temperature-measurement-server/CodegenIntegration.h>
 #include <app/clusters/temperature-measurement-server/TemperatureMeasurementCluster.h>
 #include <app/static-cluster-config/TemperatureMeasurement.h>
@@ -44,35 +45,31 @@ public:
     ServerClusterRegistration & CreateRegistration(EndpointId endpointId, unsigned clusterInstanceIndex,
                                                    uint32_t optionalAttributeBits, uint32_t featureMap) override
     {
-        TemperatureMeasurementCluster::OptionalAttributeSet optionalAttributeSet(optionalAttributeBits);
+        TemperatureMeasurementCluster::OptionalAttributes optionalAttributeSet(optionalAttributeBits);
         using namespace chip::Protocols::InteractionModel;
+
+        TemperatureMeasurementCluster::Config config;
 
         // Try to read the default value for these mandatory attributes but do not fail if the operation is not successful.
         // This is because not all apps are setting a default value for them in ember.
-        DataModel::Nullable<int16_t> minMeasuredValue{};
-        if (MinMeasuredValue::Get(endpointId, minMeasuredValue) != Status::Success)
+        if (MinMeasuredValue::Get(endpointId, config.minMeasuredValue) != Status::Success)
         {
-            minMeasuredValue.SetNull();
+            config.minMeasuredValue.SetNull();
         }
 
-        DataModel::Nullable<int16_t> maxMeasuredValue{};
-        if (MaxMeasuredValue::Get(endpointId, maxMeasuredValue) != Status::Success)
+        if (MaxMeasuredValue::Get(endpointId, config.maxMeasuredValue) != Status::Success)
         {
-            maxMeasuredValue.SetNull();
+            config.maxMeasuredValue.SetNull();
         }
 
-        uint16_t tolerance{};
         if (optionalAttributeSet.IsSet(Tolerance::Id))
         {
+            uint16_t tolerance{};
             VerifyOrDie(Tolerance::Get(endpointId, &tolerance) == Status::Success);
+            config.WithTolerance(tolerance);
         }
 
-        gServers[clusterInstanceIndex].Create(endpointId, optionalAttributeSet,
-                                              TemperatureMeasurementCluster::StartupConfiguration{
-                                                  .minMeasuredValue = minMeasuredValue,
-                                                  .maxMeasuredValue = maxMeasuredValue,
-                                                  .tolerance        = tolerance,
-                                              });
+        gServers[clusterInstanceIndex].Create(endpointId, config);
         return gServers[clusterInstanceIndex].Registration();
     }
 
@@ -141,15 +138,6 @@ CHIP_ERROR SetMeasuredValue(EndpointId endpointId, DataModel::Nullable<int16_t> 
     VerifyOrReturnError(temperatureMeasurement != nullptr, CHIP_ERROR_INVALID_ARGUMENT);
 
     return temperatureMeasurement->SetMeasuredValue(measuredValue);
-}
-
-CHIP_ERROR SetMeasuredValueRange(EndpointId endpointId, DataModel::Nullable<int16_t> minMeasuredValue,
-                                 DataModel::Nullable<int16_t> maxMeasuredValue)
-{
-    auto temperatureMeasurement = FindClusterOnEndpoint(endpointId);
-    VerifyOrReturnError(temperatureMeasurement != nullptr, CHIP_ERROR_INVALID_ARGUMENT);
-
-    return temperatureMeasurement->SetMeasuredValueRange(minMeasuredValue, maxMeasuredValue);
 }
 
 } // namespace chip::app::Clusters::TemperatureMeasurement
