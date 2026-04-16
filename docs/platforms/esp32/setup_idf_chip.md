@@ -71,6 +71,26 @@ below:
 python3 -m pip install esptool
 ```
 
+## Using ESP-IDF v6.0 (beta)
+
+ESP-IDF v6.0 requires additional Python dependencies to be installed in the
+Matter environment. Run the following after bootstrapping:
+
+```
+# Please make sure to run these commands in the Matter Python environment
+pip install --upgrade typing_extensions
+pip install -U cryptography==45.0.4
+pip install esp-idf-kconfig==3.6.0
+```
+
+> **Note:** ESP-IDF v6.0 support is currently limited to ESP32-C3 targets.
+> ESP32 targets with display support (M5Stack, WROVER-KIT) require migrating
+> from the unmaintained m5stack-tft submodule to LVGL, which is in progress.
+>
+> ESP-IDF v6.0 also ships with GCC 15 which is stricter about warnings.
+> Some examples may require build flag adjustments. Refer to individual example
+> READMEs for details.
+
 ---
 
 Once IDF and Matter environment is set up, head over to
