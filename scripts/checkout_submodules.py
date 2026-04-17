@@ -37,6 +37,7 @@ ALL_PLATFORMS = {
     'darwin',
     'silabs',
     'esp32',
+    'esp32_zephyr',
     'infineon',
     'nxp',
     'rw61x',

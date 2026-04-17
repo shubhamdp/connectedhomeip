@@ -1,0 +1,36 @@
+/*
+ * Copyright (c) 2024 Project CHIP Authors
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Device tree overlay for ESP32-C6 DevKitC
+ * Defines LED and button GPIOs for the Matter lighting app.
+ */
+
+/ {
+	aliases {
+		led0 = &status_led;
+		led1 = &light_led;
+		sw0 = &user_button;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		status_led: status_led {
+			gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+			label = "Status LED";
+		};
+		light_led: light_led {
+			gpios = <&gpio0 7 GPIO_ACTIVE_HIGH>;
+			label = "Light LED";
+		};
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+		user_button: user_button {
+			gpios = <&gpio0 9 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "User Button (BOOT)";
+		};
+	};
+};

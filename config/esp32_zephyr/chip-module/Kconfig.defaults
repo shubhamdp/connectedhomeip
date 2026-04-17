@@ -1,0 +1,284 @@
+#
+#   Copyright (c) 2024 Project CHIP Authors
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+#
+
+# The purpose of this file is to define new default values of settings used when
+# building Matter samples for ESP32 Zephyr.
+# This file only changes defaults and thus all symbols here must be promptless
+# and safeguarded so that they only are applied when building Matter.
+
+if CHIP
+
+config LOG
+    default y
+
+if LOG
+
+choice LOG_MODE
+    default LOG_MODE_MINIMAL
+endchoice
+
+choice MATTER_LOG_LEVEL_CHOICE
+    default MATTER_LOG_LEVEL_DBG
+endchoice
+
+config CHIP_APP_LOG_LEVEL
+    default 4 # info
+
+config LOG_DEFAULT_LEVEL
+    default 1 # error
+
+config CHIP_LOG_SIZE_OPTIMIZATION
+    default y
+
+endif
+
+config PRINTK_SYNC
+    default y
+
+config ASSERT
+    default n
+
+# HW_STACK_PROTECTION requires PMP on RISC-V, not available on all ESP32 variants
+config HW_STACK_PROTECTION
+    default n
+
+config SHELL
+    default y if CHIP_LIB_SHELL
+
+config POSIX_MAX_FDS
+    int
+    default 16
+
+choice LIBC_IMPLEMENTATION
+    default PICOLIBC
+endchoice
+
+# Application stack size
+config MAIN_STACK_SIZE
+    default 8192
+
+config INIT_STACKS
+    default y
+
+config SYSTEM_WORKQUEUE_STACK_SIZE
+    default 2048
+
+config HEAP_MEM_POOL_SIZE
+    default 1024
+
+config CHIP_MALLOC_SYS_HEAP_SIZE
+    default 8192
+
+# Disable libc malloc, use sys_heap only to save DRAM
+config COMMON_LIBC_MALLOC_ARENA_SIZE
+    default -1
+
+config NET_IPV6_MLD
+    default y
+
+# Network buffers
+config NET_PKT_RX_COUNT
+    default 8
+
+config NET_PKT_TX_COUNT
+    default 8
+
+config NET_BUF_RX_COUNT
+    default 32
+
+config NET_BUF_TX_COUNT
+    default 32
+
+config GPIO
+    default y
+
+# Bluetooth Low Energy configs
+
+config BT
+    default y
+
+config BT_PERIPHERAL
+    default y
+
+config BT_GATT_DYNAMIC_DB
+    default y
+
+config BT_DEVICE_NAME_DYNAMIC
+    default y
+
+config BT_DEVICE_NAME_MAX
+    default 15
+
+config BT_MAX_CONN
+    default 1
+
+config BT_L2CAP_TX_MTU
+    default 247
+
+config BT_BUF_ACL_RX_SIZE
+    default 251
+
+config BT_BUF_ACL_TX_SIZE
+    default 251
+
+config BT_RX_STACK_SIZE
+    default 2200
+
+config BT_HCI_TX_STACK_SIZE
+    default 1024
+
+config BT_DEVICE_NAME_GATT_WRITABLE
+    bool
+    default n
+
+# Enable OpenThread
+
+config NET_L2_OPENTHREAD
+    default y
+
+choice OPENTHREAD_DEVICE_TYPE
+    default OPENTHREAD_FTD
+endchoice
+
+config OPENTHREAD_SLAAC
+    default y
+
+config OPENTHREAD_MANUAL_START
+    default y
+
+# Disable certain parts of Zephyr IPv6 stack
+config NET_IPV6_NBR_CACHE
+    bool
+    default n
+
+config NET_MAX_CONN
+    default 1
+
+config NET_MAX_CONTEXTS
+    default 1
+
+config NET_CONFIG_INIT_TIMEOUT
+    default 0
+
+# Configure MBEDTLS — use Zephyr's actual Kconfig symbol names
+config MBEDTLS_ENABLE_HEAP
+    default y
+
+config MBEDTLS_HEAP_SIZE
+    default 8192
+
+config MBEDTLS_ECP_C
+    default y
+
+config MBEDTLS_ECP_DP_SECP256R1_ENABLED
+    default y
+
+config MBEDTLS_ECDH_C
+    default y
+
+config MBEDTLS_ECDSA_C
+    default y
+
+config MBEDTLS_ECJPAKE_C
+    default y
+
+config MBEDTLS_PKCS5_C
+    default y
+
+config MBEDTLS_HKDF_C
+    default y
+
+config MBEDTLS_CIPHER_CCM_ENABLED
+    default y
+
+config MBEDTLS_CTR_DRBG_ENABLED
+    default y
+
+config MBEDTLS_ENTROPY_C
+    default y
+
+config MBEDTLS_PK_WRITE_C
+    default y
+
+config MBEDTLS_X509_CSR_WRITE_C
+    default y
+
+# getopt version
+config GETOPT_LONG
+    default y
+
+# Disable not used shell modules
+
+config SHELL_WILDCARD
+    default n
+
+config SHELL_VT100_COLORS
+    default n
+
+config SHELL_STATS
+    default n
+
+config KERNEL_SHELL
+    default n
+
+config SENSOR_SHELL
+    default n
+
+config DEVICE_SHELL
+    default n
+
+config DATE_SHELL
+    default n
+
+config DEVMEM_SHELL
+    default n
+
+config MCUBOOT_SHELL
+    default n
+
+config FLASH_SHELL
+    default n
+
+config HWINFO_SHELL
+    default n
+
+config PWM_SHELL
+    default n
+
+config OPENTHREAD_SHELL
+    default n
+
+# NVS configuration
+config NVS_LOOKUP_CACHE
+    default y
+
+config NVS_LOOKUP_CACHE_SIZE
+    default 512
+
+config SETTINGS_NVS_SECTOR_SIZE_MULT
+    default 1
+
+config SETTINGS_NVS_SECTOR_COUNT
+    default 8
+
+# Suppress deprecation warnings
+config WARN_DEPRECATED
+    default n
+
+config CHIP_OTA_REQUESTOR
+    default n
+
+endif
