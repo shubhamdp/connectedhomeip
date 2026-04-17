@@ -137,6 +137,11 @@ constexpr uint32_t kOff_ms{ 950 };
 } // namespace StatusLed
 } // namespace LedConsts
 
+
+
+static const char * ssid = "ESP_India";
+static const char * psk = "Esp@3101";
+
 CHIP_ERROR AppTask::Init()
 {
     LOG_INF("Init CHIP stack");
@@ -146,10 +151,10 @@ CHIP_ERROR AppTask::Init()
     {
         struct net_if * iface = net_if_get_default();
         static struct wifi_connect_req_params cnx_params = {};
-        cnx_params.ssid = (const uint8_t *)"zephyr-ssid";
-        cnx_params.ssid_length = strlen("zephyr-ssid");
-        cnx_params.psk = (const uint8_t *)"zephyr-psk";
-        cnx_params.psk_length = strlen("zephyr-psk");
+        cnx_params.ssid = (const uint8_t *)ssid;
+        cnx_params.ssid_length = strlen(ssid);
+        cnx_params.psk = (const uint8_t *)psk;
+        cnx_params.psk_length = strlen(psk);
         cnx_params.channel = WIFI_CHANNEL_ANY;
         cnx_params.security = WIFI_SECURITY_TYPE_PSK;
         cnx_params.band = WIFI_FREQ_BAND_UNKNOWN;
@@ -158,7 +163,7 @@ CHIP_ERROR AppTask::Init()
         // Wait for WiFi driver to be ready
         k_msleep(1000);
 
-        LOG_INF("WiFi connecting to zephyr-ssid...");
+        LOG_INF("WiFi connecting to %s...", ssid);
         int ret = net_mgmt(NET_REQUEST_WIFI_CONNECT, iface, &cnx_params, sizeof(cnx_params));
         if (ret) {
             LOG_ERR("WiFi connect request failed: %d", ret);
@@ -172,8 +177,9 @@ CHIP_ERROR AppTask::Init()
             if (ret == 0 && status.state >= WIFI_STATE_ASSOCIATED) {
                 LOG_INF("WiFi associated! SSID: %s, RSSI: %d", status.ssid, status.rssi);
                 connected = true;
-                // Wait a bit more for IP
-                k_msleep(2000);
+                // Wait for DHCP/IPv6 autoconf
+                LOG_INF("Waiting for IP address...");
+                k_msleep(5000);
                 break;
             }
             if (i % 10 == 0) {
