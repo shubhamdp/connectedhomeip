@@ -16,10 +16,29 @@
 
 #pragma once
 
-// Reduce verbose logging for production-like builds
+// Reduce verbose logging
 #define CHIP_CONFIG_LOG_MODULE_Zcl_PROGRESS 0
 #define CHIP_CONFIG_LOG_MODULE_InteractionModel_PROGRESS 0
 #define CHIP_CONFIG_LOG_MODULE_InteractionModel_DETAIL 0
 #define CHIP_CONFIG_LOG_MODULE_DataManagement_PROGRESS 0
 #define CHIP_CONFIG_LOG_MODULE_FabricProvisioning_PROGRESS 0
 #define CHIP_CONFIG_LOG_MODULE_SecureChannel_PROGRESS 0
+
+// Reduce event buffer sizes to save DRAM
+#define CHIP_CONFIG_EVENT_LOGGING_CRIT_BUFFER_SIZE 512
+#define CHIP_CONFIG_EVENT_LOGGING_INFO_BUFFER_SIZE 512
+#define CHIP_CONFIG_EVENT_LOGGING_DEBUG_BUFFER_SIZE 512
+
+// Reduce exchange contexts and handlers
+#define CHIP_CONFIG_MAX_EXCHANGE_CONTEXTS 6
+#define CHIP_CONFIG_MAX_UNSOLICITED_MESSAGE_HANDLERS 6
+
+// Reduce fabric count
+#define CHIP_CONFIG_MAX_FABRICS 3
+
+// Reduce CASE sessions
+#define CHIP_CONFIG_DEVICE_MAX_ACTIVE_CASE_CLIENTS 1
+#define CHIP_CONFIG_DEVICE_MAX_ACTIVE_DEVICES 1
+
+// Reduce packet buffer pool
+#define CHIP_SYSTEM_CONFIG_PACKETBUFFER_POOL_SIZE 8

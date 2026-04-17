@@ -151,6 +151,8 @@ endif()
 
 if (CONFIG_CHIP_ENABLE_DNSSD_SRP)
     matter_add_gn_arg_string("chip_mdns" "platform")
+elseif (CONFIG_WIFI_ESP32)
+    matter_add_gn_arg_string("chip_mdns" "minimal")
 endif()
 
 if (CONFIG_CHIP_PW_RPC)

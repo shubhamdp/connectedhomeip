@@ -45,6 +45,8 @@
 #ifdef CONFIG_WIFI_ESP32
 #include <app/clusters/network-commissioning/network-commissioning.h>
 #include <platform/Zephyr/wifi/ZephyrWifiDriver.h>
+#include <zephyr/net/wifi_mgmt.h>
+#include <zephyr/net/net_if.h>
 #endif
 
 #include <zephyr/drivers/gpio.h>
@@ -138,6 +140,52 @@ constexpr uint32_t kOff_ms{ 950 };
 CHIP_ERROR AppTask::Init()
 {
     LOG_INF("Init CHIP stack");
+
+#if defined(CONFIG_WIFI_ESP32)
+    // Connect WiFi early — Matter needs network before server init
+    {
+        struct net_if * iface = net_if_get_default();
+        static struct wifi_connect_req_params cnx_params = {};
+        cnx_params.ssid = (const uint8_t *)"zephyr-ssid";
+        cnx_params.ssid_length = strlen("zephyr-ssid");
+        cnx_params.psk = (const uint8_t *)"zephyr-psk";
+        cnx_params.psk_length = strlen("zephyr-psk");
+        cnx_params.channel = WIFI_CHANNEL_ANY;
+        cnx_params.security = WIFI_SECURITY_TYPE_PSK;
+        cnx_params.band = WIFI_FREQ_BAND_UNKNOWN;
+        cnx_params.mfp = WIFI_MFP_OPTIONAL;
+
+        // Wait for WiFi driver to be ready
+        k_msleep(1000);
+
+        LOG_INF("WiFi connecting to zephyr-ssid...");
+        int ret = net_mgmt(NET_REQUEST_WIFI_CONNECT, iface, &cnx_params, sizeof(cnx_params));
+        if (ret) {
+            LOG_ERR("WiFi connect request failed: %d", ret);
+        }
+
+        // Wait for connection (up to 15 seconds)
+        bool connected = false;
+        for (int i = 0; i < 150; i++) {
+            struct wifi_iface_status status = {};
+            ret = net_mgmt(NET_REQUEST_WIFI_IFACE_STATUS, iface, &status, sizeof(status));
+            if (ret == 0 && status.state >= WIFI_STATE_ASSOCIATED) {
+                LOG_INF("WiFi associated! SSID: %s, RSSI: %d", status.ssid, status.rssi);
+                connected = true;
+                // Wait a bit more for IP
+                k_msleep(2000);
+                break;
+            }
+            if (i % 10 == 0) {
+                LOG_INF("WiFi waiting... state=%d (%d/%d)", status.state, i, 150);
+            }
+            k_msleep(100);
+        }
+        if (!connected) {
+            LOG_ERR("WiFi failed to connect within 15s");
+        }
+    }
+#endif
 
     CHIP_ERROR err = chip::Platform::MemoryInit();
     if (err != CHIP_NO_ERROR)
